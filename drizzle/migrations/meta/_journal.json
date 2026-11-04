@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1793788694803,
+      "tag": "0000_roles_and_profiles",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1793788721893,
+      "tag": "0001_core_khatta_schema",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793788773537,
+      "tag": "0002_views_triggers_seed",
+      "breakpoints": true
+    }
+  ]
+}
