@@ -175,6 +175,13 @@ export type Database = {
             referencedRelation: "parties"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "party_rates_party_id_fkey"
+            columns: ["party_id"]
+            isOneToOne: false
+            referencedRelation: "party_ledger"
+            referencedColumns: ["party_id"]
+          },
         ]
       }
       production_entries: {
@@ -233,6 +240,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "parties"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "production_entries_party_id_fkey"
+            columns: ["party_id"]
+            isOneToOne: false
+            referencedRelation: "party_ledger"
+            referencedColumns: ["party_id"]
           },
           {
             foreignKeyName: "production_entries_season_id_fkey"
@@ -416,6 +430,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "transactions_party_id_fkey"
+            columns: ["party_id"]
+            isOneToOne: false
+            referencedRelation: "party_ledger"
+            referencedColumns: ["party_id"]
+          },
+          {
             foreignKeyName: "transactions_season_id_fkey"
             columns: ["season_id"]
             isOneToOne: false
@@ -492,7 +513,42 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      party_earnings: {
+        Row: {
+          earnings: number | null
+          party_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "production_entries_party_id_fkey"
+            columns: ["party_id"]
+            isOneToOne: false
+            referencedRelation: "parties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "production_entries_party_id_fkey"
+            columns: ["party_id"]
+            isOneToOne: false
+            referencedRelation: "party_ledger"
+            referencedColumns: ["party_id"]
+          },
+        ]
+      }
+      party_ledger: {
+        Row: {
+          balance: number | null
+          deductions: number | null
+          earnings: number | null
+          kharcha: number | null
+          opening_balance: number | null
+          paid_by_them: number | null
+          paid_by_us: number | null
+          party_id: string | null
+          party_kind: Database["public"]["Enums"]["party_kind"] | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       claim_owner_role: { Args: never; Returns: boolean }

@@ -15,6 +15,13 @@
       "when": 1793788721893,
       "tag": "0001_core_khatta_schema",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793788773537,
+      "tag": "0002_views_triggers_seed",
+      "breakpoints": true
     }
   ]
 }
