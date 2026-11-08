@@ -10,11 +10,22 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedPatheerRouteImport } from './routes/_authenticated/patheer'
+import { Route as AuthenticatedQualitiesRouteImport } from './routes/_authenticated/qualities'
+import { Route as AuthenticatedSeasonsRouteImport } from './routes/_authenticated/seasons'
+import { Route as AuthenticatedPatheerIndexRouteImport } from './routes/_authenticated/patheer.index'
+import { Route as AuthenticatedPatheerIdRouteImport } from './routes/_authenticated/patheer.$id'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
+  id: '/_authenticated',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthRoute = AuthRouteImport.update({
@@ -22,30 +33,105 @@ const AuthRoute = AuthRouteImport.update({
   path: '/auth',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedPatheerRoute = AuthenticatedPatheerRouteImport.update({
+  id: '/patheer',
+  path: '/patheer',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedQualitiesRoute = AuthenticatedQualitiesRouteImport.update({
+  id: '/qualities',
+  path: '/qualities',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedSeasonsRoute = AuthenticatedSeasonsRouteImport.update({
+  id: '/seasons',
+  path: '/seasons',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedPatheerIndexRoute =
+  AuthenticatedPatheerIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedPatheerRoute,
+  } as any)
+const AuthenticatedPatheerIdRoute = AuthenticatedPatheerIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => AuthenticatedPatheerRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/dashboard': typeof AuthenticatedDashboardRoute
+  '/patheer': typeof AuthenticatedPatheerRouteWithChildren
+  '/qualities': typeof AuthenticatedQualitiesRoute
+  '/seasons': typeof AuthenticatedSeasonsRoute
+  '/patheer/$id': typeof AuthenticatedPatheerIdRoute
+  '/patheer/': typeof AuthenticatedPatheerIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/dashboard': typeof AuthenticatedDashboardRoute
+  '/qualities': typeof AuthenticatedQualitiesRoute
+  '/seasons': typeof AuthenticatedSeasonsRoute
+  '/patheer/$id': typeof AuthenticatedPatheerIdRoute
+  '/patheer': typeof AuthenticatedPatheerIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
+  '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/patheer': typeof AuthenticatedPatheerRouteWithChildren
+  '/_authenticated/qualities': typeof AuthenticatedQualitiesRoute
+  '/_authenticated/seasons': typeof AuthenticatedSeasonsRoute
+  '/_authenticated/patheer/$id': typeof AuthenticatedPatheerIdRoute
+  '/_authenticated/patheer/': typeof AuthenticatedPatheerIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/auth'
+  fullPaths:
+    | '/'
+    | '/auth'
+    | '/dashboard'
+    | '/patheer'
+    | '/qualities'
+    | '/seasons'
+    | '/patheer/$id'
+    | '/patheer/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/auth'
-  id: '__root__' | '/' | '/auth'
+  to:
+    | '/'
+    | '/auth'
+    | '/dashboard'
+    | '/qualities'
+    | '/seasons'
+    | '/patheer/$id'
+    | '/patheer'
+  id:
+    | '__root__'
+    | '/'
+    | '/_authenticated'
+    | '/auth'
+    | '/_authenticated/dashboard'
+    | '/_authenticated/patheer'
+    | '/_authenticated/qualities'
+    | '/_authenticated/seasons'
+    | '/_authenticated/patheer/$id'
+    | '/_authenticated/patheer/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
 }
 
@@ -58,6 +144,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/auth': {
       id: '/auth'
       path: '/auth'
@@ -65,11 +158,84 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/dashboard': {
+      id: '/_authenticated/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof AuthenticatedDashboardRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/patheer': {
+      id: '/_authenticated/patheer'
+      path: '/patheer'
+      fullPath: '/patheer'
+      preLoaderRoute: typeof AuthenticatedPatheerRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/qualities': {
+      id: '/_authenticated/qualities'
+      path: '/qualities'
+      fullPath: '/qualities'
+      preLoaderRoute: typeof AuthenticatedQualitiesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/seasons': {
+      id: '/_authenticated/seasons'
+      path: '/seasons'
+      fullPath: '/seasons'
+      preLoaderRoute: typeof AuthenticatedSeasonsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/patheer/': {
+      id: '/_authenticated/patheer/'
+      path: '/'
+      fullPath: '/patheer/'
+      preLoaderRoute: typeof AuthenticatedPatheerIndexRouteImport
+      parentRoute: typeof AuthenticatedPatheerRoute
+    }
+    '/_authenticated/patheer/$id': {
+      id: '/_authenticated/patheer/$id'
+      path: '/$id'
+      fullPath: '/patheer/$id'
+      preLoaderRoute: typeof AuthenticatedPatheerIdRouteImport
+      parentRoute: typeof AuthenticatedPatheerRoute
+    }
   }
 }
 
+interface AuthenticatedPatheerRouteChildren {
+  AuthenticatedPatheerIdRoute: typeof AuthenticatedPatheerIdRoute
+  AuthenticatedPatheerIndexRoute: typeof AuthenticatedPatheerIndexRoute
+}
+
+const AuthenticatedPatheerRouteChildren: AuthenticatedPatheerRouteChildren = {
+  AuthenticatedPatheerIdRoute: AuthenticatedPatheerIdRoute,
+  AuthenticatedPatheerIndexRoute: AuthenticatedPatheerIndexRoute,
+}
+
+const AuthenticatedPatheerRouteWithChildren =
+  AuthenticatedPatheerRoute._addFileChildren(AuthenticatedPatheerRouteChildren)
+
+interface AuthenticatedRouteRouteChildren {
+  AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedPatheerRoute: typeof AuthenticatedPatheerRouteWithChildren
+  AuthenticatedQualitiesRoute: typeof AuthenticatedQualitiesRoute
+  AuthenticatedSeasonsRoute: typeof AuthenticatedSeasonsRoute
+}
+
+const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedPatheerRoute: AuthenticatedPatheerRouteWithChildren,
+  AuthenticatedQualitiesRoute: AuthenticatedQualitiesRoute,
+  AuthenticatedSeasonsRoute: AuthenticatedSeasonsRoute,
+}
+
+const AuthenticatedRouteRouteWithChildren =
+  AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
 }
 export const routeTree = rootRouteImport
