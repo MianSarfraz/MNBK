@@ -36,7 +36,7 @@ function QualitiesPage() {
   async function add(e: React.FormEvent) {
     e.preventDefault();
     const { error } = await supabase.from("qualities").insert({ name_en: en, name_ur: ur, kind, category: cat, sort_order: 100, created_by: await myId() });
-    if (error) return toast.error(error.message);
+    if (error) return void toast.error(error.message);
     setEn(""); setUr("");
     qc.invalidateQueries({ queryKey: ["qualities"] });
   }

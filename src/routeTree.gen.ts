@@ -16,6 +16,7 @@ import { Route as AuthenticatedDashboardRouteImport } from './routes/_authentica
 import { Route as AuthenticatedPatheerRouteImport } from './routes/_authenticated/patheer'
 import { Route as AuthenticatedQualitiesRouteImport } from './routes/_authenticated/qualities'
 import { Route as AuthenticatedSeasonsRouteImport } from './routes/_authenticated/seasons'
+import { Route as AuthenticatedWeeklyRouteImport } from './routes/_authenticated/weekly'
 import { Route as AuthenticatedPatheerIndexRouteImport } from './routes/_authenticated/patheer.index'
 import { Route as AuthenticatedPatheerIdRouteImport } from './routes/_authenticated/patheer.$id'
 
@@ -53,6 +54,11 @@ const AuthenticatedSeasonsRoute = AuthenticatedSeasonsRouteImport.update({
   path: '/seasons',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedWeeklyRoute = AuthenticatedWeeklyRouteImport.update({
+  id: '/weekly',
+  path: '/weekly',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedPatheerIndexRoute =
   AuthenticatedPatheerIndexRouteImport.update({
     id: '/',
@@ -72,6 +78,7 @@ export interface FileRoutesByFullPath {
   '/patheer': typeof AuthenticatedPatheerRouteWithChildren
   '/qualities': typeof AuthenticatedQualitiesRoute
   '/seasons': typeof AuthenticatedSeasonsRoute
+  '/weekly': typeof AuthenticatedWeeklyRoute
   '/patheer/$id': typeof AuthenticatedPatheerIdRoute
   '/patheer/': typeof AuthenticatedPatheerIndexRoute
 }
@@ -81,6 +88,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/qualities': typeof AuthenticatedQualitiesRoute
   '/seasons': typeof AuthenticatedSeasonsRoute
+  '/weekly': typeof AuthenticatedWeeklyRoute
   '/patheer/$id': typeof AuthenticatedPatheerIdRoute
   '/patheer': typeof AuthenticatedPatheerIndexRoute
 }
@@ -93,6 +101,7 @@ export interface FileRoutesById {
   '/_authenticated/patheer': typeof AuthenticatedPatheerRouteWithChildren
   '/_authenticated/qualities': typeof AuthenticatedQualitiesRoute
   '/_authenticated/seasons': typeof AuthenticatedSeasonsRoute
+  '/_authenticated/weekly': typeof AuthenticatedWeeklyRoute
   '/_authenticated/patheer/$id': typeof AuthenticatedPatheerIdRoute
   '/_authenticated/patheer/': typeof AuthenticatedPatheerIndexRoute
 }
@@ -105,6 +114,7 @@ export interface FileRouteTypes {
     | '/patheer'
     | '/qualities'
     | '/seasons'
+    | '/weekly'
     | '/patheer/$id'
     | '/patheer/'
   fileRoutesByTo: FileRoutesByTo
@@ -114,6 +124,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/qualities'
     | '/seasons'
+    | '/weekly'
     | '/patheer/$id'
     | '/patheer'
   id:
@@ -125,6 +136,7 @@ export interface FileRouteTypes {
     | '/_authenticated/patheer'
     | '/_authenticated/qualities'
     | '/_authenticated/seasons'
+    | '/_authenticated/weekly'
     | '/_authenticated/patheer/$id'
     | '/_authenticated/patheer/'
   fileRoutesById: FileRoutesById
@@ -186,6 +198,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSeasonsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/weekly': {
+      id: '/_authenticated/weekly'
+      path: '/weekly'
+      fullPath: '/weekly'
+      preLoaderRoute: typeof AuthenticatedWeeklyRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/patheer/': {
       id: '/_authenticated/patheer/'
       path: '/'
@@ -221,6 +240,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedPatheerRoute: typeof AuthenticatedPatheerRouteWithChildren
   AuthenticatedQualitiesRoute: typeof AuthenticatedQualitiesRoute
   AuthenticatedSeasonsRoute: typeof AuthenticatedSeasonsRoute
+  AuthenticatedWeeklyRoute: typeof AuthenticatedWeeklyRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -228,6 +248,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedPatheerRoute: AuthenticatedPatheerRouteWithChildren,
   AuthenticatedQualitiesRoute: AuthenticatedQualitiesRoute,
   AuthenticatedSeasonsRoute: AuthenticatedSeasonsRoute,
+  AuthenticatedWeeklyRoute: AuthenticatedWeeklyRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =

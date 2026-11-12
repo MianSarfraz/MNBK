@@ -65,7 +65,7 @@ export function settle(p: Omit<Settlement, "balance">): Settlement {
 
 // ---------- Weeks (Thursday → Wednesday) ----------
 function toDate(s: string) {
-  const [y, m, d] = s.split("-").map(Number);
+  const [y, m, d] = s.split("-").map(Number) as [number, number, number];
   return new Date(Date.UTC(y, m - 1, d));
 }
 export function iso(d: Date) {

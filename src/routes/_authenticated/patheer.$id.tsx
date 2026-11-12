@@ -85,14 +85,14 @@ function PatheerLedger() {
 
   async function savePay() {
     const amount = parseInt(pay.amount, 10);
-    if (!Number.isInteger(amount) || amount <= 0) return toast.error("Whole rupees only");
-    if (!pay.handler) return toast.error(t("paidBy"));
+    if (!Number.isInteger(amount) || amount <= 0) return void toast.error("Whole rupees only");
+    if (!pay.handler) return void toast.error(t("paidBy"));
     const m = payMap[pay.type];
     const { error } = await supabase.from("transactions").insert({
-      entry_date: pay.date, party_id: id, season_id: q.data?.party.season_id, kind: m.kind, direction: m.direction, amount,
+      entry_date: pay.date, party_id: id, season_id: q.data?.party.season_id ?? null, kind: m.kind, direction: m.direction, amount,
       method: pay.method as "cash", handler_user_id: pay.handler, category: "patheer", note: pay.note || null, created_by: await myId(),
     });
-    if (error) return toast.error(error.message);
+    if (error) return void toast.error(error.message);
     setPay({ ...pay, amount: "", note: "" });
     qc.invalidateQueries();
   }
@@ -103,9 +103,9 @@ function PatheerLedger() {
   }
   async function addRate() {
     const v = parseInt(rate.value, 10);
-    if (!Number.isInteger(v) || v <= 0) return toast.error("Whole numbers only");
+    if (!Number.isInteger(v) || v <= 0) return void toast.error("Whole numbers only");
     const { error } = await supabase.from("party_rates").insert({ party_id: id, kind: rate.kind, rate_per_1000: v, effective_from: rate.from, created_by: await myId() });
-    if (error) return toast.error(error.message);
+    if (error) return void toast.error(error.message);
     setRate({ ...rate, value: "" });
     qc.invalidateQueries();
   }

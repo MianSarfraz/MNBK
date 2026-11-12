@@ -27,7 +27,7 @@ function PatheerList() {
   async function add(e: React.FormEvent) {
     e.preventDefault();
     const rate = parseInt(f.rate, 10), kh = parseInt(f.kharcha, 10), opening = parseInt(f.opening || "0", 10);
-    if (!Number.isInteger(rate) || !Number.isInteger(kh) || !Number.isInteger(opening)) return toast.error("Whole numbers only");
+    if (!Number.isInteger(rate) || !Number.isInteger(kh) || !Number.isInteger(opening)) return void toast.error("Whole numbers only");
     try {
       const uid = await myId();
       const season = (seasons.data ?? []).find((s) => !s.is_closed);
