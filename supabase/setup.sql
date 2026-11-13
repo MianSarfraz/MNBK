@@ -1,18 +1,26 @@
--- Mian Nawaz Bricks — complete database setup (migrations 0000–0006).
--- Run ONCE in Supabase → SQL Editor on an EMPTY project, then click Run.
--- Already ran an older setup.sql? Run only drizzle/migrations/0006_auto_weeks.sql instead.
+-- Mian Nawaz Bricks — complete database setup (all migrations 0000–0006).
+-- Safe to run on ANY state: a brand-new empty Supabase project, a project that already ran an older
+-- setup.sql, or one that already ran this file. Every step skips itself if already done; no data is touched.
+-- Supabase → SQL Editor → paste everything → Run.
+
+-- Views hold no data; drop and rebuild them so their columns are always current.
+drop view if exists public.party_ledger cascade;
+drop view if exists public.party_earnings cascade;
+drop view if exists public.sale_totals cascade;
+drop view if exists public.finished_stock cascade;
+drop view if exists public.raw_stock cascade;
 
 -- ===== 0000_roles_and_profiles.sql =====
-create type public.app_role as enum ('owner', 'munshi');
+do $t$ begin create type public.app_role as enum ('owner', 'munshi'); exception when duplicate_object then null; end $t$;
 
-create table public.profiles (
+create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   display_name text not null default '',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
-create table public.user_roles (
+create table if not exists public.user_roles (
   id uuid primary key default gen_random_uuid(),
   user_id uuid references auth.users(id) on delete cascade not null,
   role app_role not null,
@@ -24,12 +32,15 @@ create table public.user_roles (
 GRANT SELECT, UPDATE ON public.profiles TO authenticated;
 GRANT ALL ON public.profiles TO service_role;
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "read own profile" ON public.profiles;
 CREATE POLICY "read own profile" ON public.profiles FOR SELECT TO authenticated USING (id = auth.uid());
+DROP POLICY IF EXISTS "update own profile" ON public.profiles;
 CREATE POLICY "update own profile" ON public.profiles FOR UPDATE TO authenticated USING (id = auth.uid());
 
 GRANT SELECT ON public.user_roles TO authenticated;
 GRANT ALL ON public.user_roles TO service_role;
 ALTER TABLE public.user_roles ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "read own roles" ON public.user_roles;
 CREATE POLICY "read own roles" ON public.user_roles FOR SELECT TO authenticated USING (user_id = auth.uid());
 
 create or replace function public.has_role(_user_id uuid, _role app_role)
@@ -82,23 +93,23 @@ begin
 end;
 $$;
 
+drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
 after insert on auth.users
 for each row execute function public.handle_new_user();
 
-
 -- ===== 0001_core_khatta_schema.sql =====
 -- ====== ENUMS ======
-create type public.quality_kind as enum ('sale', 'nakasi');
-create type public.quality_category as enum ('normal', 'nine_t', 'special', 'other');
-create type public.party_kind as enum ('patheer', 'rehra', 'nakasi', 'employee', 'customer', 'vendor');
-create type public.rate_kind as enum ('earning', 'kharcha');
-create type public.txn_kind as enum ('kharcha', 'expense', 'salary', 'worker_payment_us', 'worker_payment_them', 'sale_receipt', 'adjustment', 'other');
-create type public.txn_direction as enum ('in', 'out');
-create type public.pay_method as enum ('cash', 'bank', 'easypaisa', 'jazzcash', 'other');
+do $t$ begin create type public.quality_kind as enum ('sale', 'nakasi'); exception when duplicate_object then null; end $t$;
+do $t$ begin create type public.quality_category as enum ('normal', 'nine_t', 'special', 'other'); exception when duplicate_object then null; end $t$;
+do $t$ begin create type public.party_kind as enum ('patheer', 'rehra', 'nakasi', 'employee', 'customer', 'vendor'); exception when duplicate_object then null; end $t$;
+do $t$ begin create type public.rate_kind as enum ('earning', 'kharcha'); exception when duplicate_object then null; end $t$;
+do $t$ begin create type public.txn_kind as enum ('kharcha', 'expense', 'salary', 'worker_payment_us', 'worker_payment_them', 'sale_receipt', 'adjustment', 'other'); exception when duplicate_object then null; end $t$;
+do $t$ begin create type public.txn_direction as enum ('in', 'out'); exception when duplicate_object then null; end $t$;
+do $t$ begin create type public.pay_method as enum ('cash', 'bank', 'easypaisa', 'jazzcash', 'other'); exception when duplicate_object then null; end $t$;
 
 -- ====== SEASONS ======
-create table public.seasons (
+create table if not exists public.seasons (
   id uuid primary key default gen_random_uuid(),
   name text not null,
   start_date date not null,
@@ -111,7 +122,7 @@ create table public.seasons (
 );
 
 -- ====== WEEKS (Thursday to Wednesday) ======
-create table public.weeks (
+create table if not exists public.weeks (
   id uuid primary key default gen_random_uuid(),
   season_id uuid not null references public.seasons(id),
   week_number int not null,
@@ -121,10 +132,10 @@ create table public.weeks (
   created_at timestamptz not null default now(),
   unique (season_id, start_date)
 );
-create index weeks_season_idx on public.weeks (season_id, start_date);
+create index if not exists weeks_season_idx on public.weeks (season_id, start_date);
 
 -- ====== QUALITIES ======
-create table public.qualities (
+create table if not exists public.qualities (
   id uuid primary key default gen_random_uuid(),
   name_en text not null,
   name_ur text not null,
@@ -139,7 +150,7 @@ create table public.qualities (
 );
 
 -- ====== PARTIES ======
-create table public.parties (
+create table if not exists public.parties (
   id uuid primary key default gen_random_uuid(),
   kind public.party_kind not null,
   name text not null,
@@ -153,10 +164,10 @@ create table public.parties (
   updated_at timestamptz not null default now(),
   deleted_at timestamptz
 );
-create index parties_kind_idx on public.parties (kind) where deleted_at is null;
+create index if not exists parties_kind_idx on public.parties (kind) where deleted_at is null;
 
 -- ====== RATES with effective dates ======
-create table public.party_rates (
+create table if not exists public.party_rates (
   id uuid primary key default gen_random_uuid(),
   party_id uuid not null references public.parties(id),
   kind public.rate_kind not null,
@@ -167,10 +178,10 @@ create table public.party_rates (
   deleted_at timestamptz,
   unique (party_id, kind, effective_from)
 );
-create index party_rates_party_idx on public.party_rates (party_id, kind, effective_from);
+create index if not exists party_rates_party_idx on public.party_rates (party_id, kind, effective_from);
 
 -- ====== PRODUCTION ENTRIES (patheer/rehra/nakasi weekly work) ======
-create table public.production_entries (
+create table if not exists public.production_entries (
   id uuid primary key default gen_random_uuid(),
   party_id uuid not null references public.parties(id),
   season_id uuid not null references public.seasons(id),
@@ -187,11 +198,11 @@ create table public.production_entries (
   deleted_at timestamptz,
   unique (party_id, entry_date)
 );
-create index production_week_idx on public.production_entries (week_id);
-create index production_party_idx on public.production_entries (party_id, entry_date);
+create index if not exists production_week_idx on public.production_entries (week_id);
+create index if not exists production_party_idx on public.production_entries (party_id, entry_date);
 
 -- ====== CENTRAL TRANSACTIONS ======
-create table public.transactions (
+create table if not exists public.transactions (
   id uuid primary key default gen_random_uuid(),
   entry_date date not null,
   season_id uuid references public.seasons(id),
@@ -210,12 +221,12 @@ create table public.transactions (
   updated_at timestamptz not null default now(),
   deleted_at timestamptz
 );
-create index txn_party_idx on public.transactions (party_id) where deleted_at is null;
-create index txn_season_idx on public.transactions (season_id) where deleted_at is null;
-create index txn_date_idx on public.transactions (entry_date) where deleted_at is null;
+create index if not exists txn_party_idx on public.transactions (party_id) where deleted_at is null;
+create index if not exists txn_season_idx on public.transactions (season_id) where deleted_at is null;
+create index if not exists txn_date_idx on public.transactions (entry_date) where deleted_at is null;
 
 -- ====== EXPENSE CATEGORIES ======
-create table public.expense_categories (
+create table if not exists public.expense_categories (
   id uuid primary key default gen_random_uuid(),
   name_en text not null,
   name_ur text not null,
@@ -228,7 +239,7 @@ create table public.expense_categories (
 );
 
 -- ====== AUDIT LOG (append only) ======
-create table public.audit_log (
+create table if not exists public.audit_log (
   id bigint generated always as identity primary key,
   table_name text not null,
   row_id uuid,
@@ -238,7 +249,7 @@ create table public.audit_log (
   changed_by uuid,
   changed_at timestamptz not null default now()
 );
-create index audit_row_idx on public.audit_log (table_name, row_id, id);
+create index if not exists audit_row_idx on public.audit_log (table_name, row_id, id);
 
 -- ====== GRANTS ======
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.seasons TO authenticated;
@@ -263,51 +274,84 @@ ALTER TABLE public.transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.expense_categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.audit_log ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "owners read seasons" ON public.seasons;
 CREATE POLICY "owners read seasons" ON public.seasons FOR SELECT TO authenticated USING (public.has_role(auth.uid(), 'owner'));
+DROP POLICY IF EXISTS "owners write seasons" ON public.seasons;
 CREATE POLICY "owners write seasons" ON public.seasons FOR INSERT TO authenticated WITH CHECK (public.has_role(auth.uid(), 'owner'));
+DROP POLICY IF EXISTS "owners update seasons" ON public.seasons;
 CREATE POLICY "owners update seasons" ON public.seasons FOR UPDATE TO authenticated USING (public.has_role(auth.uid(), 'owner'));
+DROP POLICY IF EXISTS "owners delete seasons" ON public.seasons;
 CREATE POLICY "owners delete seasons" ON public.seasons FOR DELETE TO authenticated USING (public.has_role(auth.uid(), 'owner'));
 
+DROP POLICY IF EXISTS "owners read weeks" ON public.weeks;
 CREATE POLICY "owners read weeks" ON public.weeks FOR SELECT TO authenticated USING (public.has_role(auth.uid(), 'owner'));
+DROP POLICY IF EXISTS "owners write weeks" ON public.weeks;
 CREATE POLICY "owners write weeks" ON public.weeks FOR INSERT TO authenticated WITH CHECK (public.has_role(auth.uid(), 'owner'));
+DROP POLICY IF EXISTS "owners update weeks" ON public.weeks;
 CREATE POLICY "owners update weeks" ON public.weeks FOR UPDATE TO authenticated USING (public.has_role(auth.uid(), 'owner'));
+DROP POLICY IF EXISTS "owners delete weeks" ON public.weeks;
 CREATE POLICY "owners delete weeks" ON public.weeks FOR DELETE TO authenticated USING (public.has_role(auth.uid(), 'owner'));
 
+DROP POLICY IF EXISTS "owners read qualities" ON public.qualities;
 CREATE POLICY "owners read qualities" ON public.qualities FOR SELECT TO authenticated USING (public.has_role(auth.uid(), 'owner'));
+DROP POLICY IF EXISTS "owners write qualities" ON public.qualities;
 CREATE POLICY "owners write qualities" ON public.qualities FOR INSERT TO authenticated WITH CHECK (public.has_role(auth.uid(), 'owner'));
+DROP POLICY IF EXISTS "owners update qualities" ON public.qualities;
 CREATE POLICY "owners update qualities" ON public.qualities FOR UPDATE TO authenticated USING (public.has_role(auth.uid(), 'owner'));
+DROP POLICY IF EXISTS "owners delete qualities" ON public.qualities;
 CREATE POLICY "owners delete qualities" ON public.qualities FOR DELETE TO authenticated USING (public.has_role(auth.uid(), 'owner'));
 
+DROP POLICY IF EXISTS "owners read parties" ON public.parties;
 CREATE POLICY "owners read parties" ON public.parties FOR SELECT TO authenticated USING (public.has_role(auth.uid(), 'owner'));
+DROP POLICY IF EXISTS "owners write parties" ON public.parties;
 CREATE POLICY "owners write parties" ON public.parties FOR INSERT TO authenticated WITH CHECK (public.has_role(auth.uid(), 'owner'));
+DROP POLICY IF EXISTS "owners update parties" ON public.parties;
 CREATE POLICY "owners update parties" ON public.parties FOR UPDATE TO authenticated USING (public.has_role(auth.uid(), 'owner'));
+DROP POLICY IF EXISTS "owners delete parties" ON public.parties;
 CREATE POLICY "owners delete parties" ON public.parties FOR DELETE TO authenticated USING (public.has_role(auth.uid(), 'owner'));
 
+DROP POLICY IF EXISTS "owners read rates" ON public.party_rates;
 CREATE POLICY "owners read rates" ON public.party_rates FOR SELECT TO authenticated USING (public.has_role(auth.uid(), 'owner'));
+DROP POLICY IF EXISTS "owners write rates" ON public.party_rates;
 CREATE POLICY "owners write rates" ON public.party_rates FOR INSERT TO authenticated WITH CHECK (public.has_role(auth.uid(), 'owner'));
+DROP POLICY IF EXISTS "owners update rates" ON public.party_rates;
 CREATE POLICY "owners update rates" ON public.party_rates FOR UPDATE TO authenticated USING (public.has_role(auth.uid(), 'owner'));
+DROP POLICY IF EXISTS "owners delete rates" ON public.party_rates;
 CREATE POLICY "owners delete rates" ON public.party_rates FOR DELETE TO authenticated USING (public.has_role(auth.uid(), 'owner'));
 
+DROP POLICY IF EXISTS "owners read production" ON public.production_entries;
 CREATE POLICY "owners read production" ON public.production_entries FOR SELECT TO authenticated USING (public.has_role(auth.uid(), 'owner'));
+DROP POLICY IF EXISTS "owners write production" ON public.production_entries;
 CREATE POLICY "owners write production" ON public.production_entries FOR INSERT TO authenticated WITH CHECK (public.has_role(auth.uid(), 'owner'));
+DROP POLICY IF EXISTS "owners update production" ON public.production_entries;
 CREATE POLICY "owners update production" ON public.production_entries FOR UPDATE TO authenticated USING (public.has_role(auth.uid(), 'owner'));
+DROP POLICY IF EXISTS "owners delete production" ON public.production_entries;
 CREATE POLICY "owners delete production" ON public.production_entries FOR DELETE TO authenticated USING (public.has_role(auth.uid(), 'owner'));
 
+DROP POLICY IF EXISTS "owners read transactions" ON public.transactions;
 CREATE POLICY "owners read transactions" ON public.transactions FOR SELECT TO authenticated USING (public.has_role(auth.uid(), 'owner'));
+DROP POLICY IF EXISTS "owners write transactions" ON public.transactions;
 CREATE POLICY "owners write transactions" ON public.transactions FOR INSERT TO authenticated WITH CHECK (public.has_role(auth.uid(), 'owner'));
+DROP POLICY IF EXISTS "owners update transactions" ON public.transactions;
 CREATE POLICY "owners update transactions" ON public.transactions FOR UPDATE TO authenticated USING (public.has_role(auth.uid(), 'owner'));
+DROP POLICY IF EXISTS "owners delete transactions" ON public.transactions;
 CREATE POLICY "owners delete transactions" ON public.transactions FOR DELETE TO authenticated USING (public.has_role(auth.uid(), 'owner'));
 
+DROP POLICY IF EXISTS "owners read categories" ON public.expense_categories;
 CREATE POLICY "owners read categories" ON public.expense_categories FOR SELECT TO authenticated USING (public.has_role(auth.uid(), 'owner'));
+DROP POLICY IF EXISTS "owners write categories" ON public.expense_categories;
 CREATE POLICY "owners write categories" ON public.expense_categories FOR INSERT TO authenticated WITH CHECK (public.has_role(auth.uid(), 'owner'));
+DROP POLICY IF EXISTS "owners update categories" ON public.expense_categories;
 CREATE POLICY "owners update categories" ON public.expense_categories FOR UPDATE TO authenticated USING (public.has_role(auth.uid(), 'owner'));
+DROP POLICY IF EXISTS "owners delete categories" ON public.expense_categories;
 CREATE POLICY "owners delete categories" ON public.expense_categories FOR DELETE TO authenticated USING (public.has_role(auth.uid(), 'owner'));
 
+DROP POLICY IF EXISTS "owners read audit" ON public.audit_log;
 CREATE POLICY "owners read audit" ON public.audit_log FOR SELECT TO authenticated USING (public.has_role(auth.uid(), 'owner'));
-
 
 -- ===== 0002_views_triggers_seed.sql =====
 -- ====== SEED: qualities (master list from the owner) ======
+do $seed$ begin if not exists (select 1 from public.qualities) then
 insert into public.qualities (name_en, name_ur, kind, category, sort_order, created_by) values
   ('Awal', 'اول', 'sale', 'normal', 1, '00000000-0000-0000-0000-000000000000'),
   ('Awal Brshi', 'اول برشی', 'sale', 'normal', 2, '00000000-0000-0000-0000-000000000000'),
@@ -326,7 +370,9 @@ insert into public.qualities (name_en, name_ur, kind, category, sort_order, crea
   ('9T', '9T', 'nakasi', 'nine_t', 23, '00000000-0000-0000-0000-000000000000'),
   ('9T Dara', '9T ڈارا', 'nakasi', 'nine_t', 24, '00000000-0000-0000-0000-000000000000'),
   ('Kali', 'کالی', 'nakasi', 'other', 25, '00000000-0000-0000-0000-000000000000');
+end if; end $seed$;
 
+do $seed$ begin if not exists (select 1 from public.expense_categories) then
 insert into public.expense_categories (name_en, name_ur, sort_order, created_by) values
   ('Coal / Fuel', 'کوئلہ / ایندھن', 1, '00000000-0000-0000-0000-000000000000'),
   ('Diesel', 'ڈیزل', 2, '00000000-0000-0000-0000-000000000000'),
@@ -335,6 +381,7 @@ insert into public.expense_categories (name_en, name_ur, sort_order, created_by)
   ('Transport', 'ٹرانسپورٹ', 5, '00000000-0000-0000-0000-000000000000'),
   ('Salary', 'تنخواہ', 6, '00000000-0000-0000-0000-000000000000'),
   ('Misc', 'متفرق', 7, '00000000-0000-0000-0000-000000000000');
+end if; end $seed$;
 
 -- ====== updated_at touch trigger ======
 create or replace function public.touch_updated_at()
@@ -345,12 +392,19 @@ begin
 end;
 $$;
 
+drop trigger if exists touch_seasons on public.seasons;
 create trigger touch_seasons before update on public.seasons for each row execute function public.touch_updated_at();
+drop trigger if exists touch_qualities on public.qualities;
 create trigger touch_qualities before update on public.qualities for each row execute function public.touch_updated_at();
+drop trigger if exists touch_parties on public.parties;
 create trigger touch_parties before update on public.parties for each row execute function public.touch_updated_at();
+drop trigger if exists touch_production on public.production_entries;
 create trigger touch_production before update on public.production_entries for each row execute function public.touch_updated_at();
+drop trigger if exists touch_transactions on public.transactions;
 create trigger touch_transactions before update on public.transactions for each row execute function public.touch_updated_at();
+drop trigger if exists touch_categories on public.expense_categories;
 create trigger touch_categories before update on public.expense_categories for each row execute function public.touch_updated_at();
+drop trigger if exists touch_profiles on public.profiles;
 create trigger touch_profiles before update on public.profiles for each row execute function public.touch_updated_at();
 
 -- ====== AUDIT trigger (every insert/update/delete logged) ======
@@ -374,13 +428,21 @@ begin
 end;
 $$;
 
+drop trigger if exists audit_seasons on public.seasons;
 create trigger audit_seasons after insert or update or delete on public.seasons for each row execute function public.audit_row();
+drop trigger if exists audit_weeks on public.weeks;
 create trigger audit_weeks after insert or update or delete on public.weeks for each row execute function public.audit_row();
+drop trigger if exists audit_qualities on public.qualities;
 create trigger audit_qualities after insert or update or delete on public.qualities for each row execute function public.audit_row();
+drop trigger if exists audit_parties on public.parties;
 create trigger audit_parties after insert or update or delete on public.parties for each row execute function public.audit_row();
+drop trigger if exists audit_party_rates on public.party_rates;
 create trigger audit_party_rates after insert or update or delete on public.party_rates for each row execute function public.audit_row();
+drop trigger if exists audit_production on public.production_entries;
 create trigger audit_production after insert or update or delete on public.production_entries for each row execute function public.audit_row();
+drop trigger if exists audit_transactions on public.transactions;
 create trigger audit_transactions after insert or update or delete on public.transactions for each row execute function public.audit_row();
+drop trigger if exists audit_categories on public.expense_categories;
 create trigger audit_categories after insert or update or delete on public.expense_categories for each row execute function public.audit_row();
 
 -- ====== VALIDATION triggers ======
@@ -415,6 +477,7 @@ begin
 end;
 $$;
 
+drop trigger if exists validate_production on public.production_entries;
 create trigger validate_production before insert or update on public.production_entries for each row execute function public.validate_production_entry();
 
 create or replace function public.validate_transaction_season()
@@ -432,6 +495,7 @@ begin
 end;
 $$;
 
+drop trigger if exists validate_txn_season on public.transactions;
 create trigger validate_txn_season before insert or update on public.transactions for each row execute function public.validate_transaction_season();
 
 -- ====== LEDGER VIEWS (balances always computed, never stored) ======
@@ -493,8 +557,8 @@ where p.deleted_at is null;
 GRANT SELECT ON public.party_earnings TO authenticated;
 GRANT SELECT ON public.party_ledger TO authenticated;
 
-
 -- ===== 0003_owners_read_profiles.sql =====
+DROP POLICY IF EXISTS "owners read all profiles" ON public.profiles;
 CREATE POLICY "owners read all profiles" ON public.profiles FOR SELECT TO authenticated USING (public.has_role(auth.uid(), 'owner'));
 
 -- ===== 0004_fix_audit_row_uuid_cast.sql =====
@@ -526,8 +590,8 @@ $function$;
 -- ====== ENUMS ======
 -- New enum value is not referenced anywhere else in this migration (safe inside one transaction).
 alter type public.txn_kind add value if not exists 'owner_transfer';
-create type public.kiln_stage as enum ('rehra', 'nakasi');
-create type public.stock_kind as enum ('raw', 'finished');
+do $t$ begin create type public.kiln_stage as enum ('rehra', 'nakasi'); exception when duplicate_object then null; end $t$;
+do $t$ begin create type public.stock_kind as enum ('raw', 'finished'); exception when duplicate_object then null; end $t$;
 
 -- ====== COLUMN ADDITIONS ======
 alter table public.qualities add column if not exists stock_quality_id uuid references public.qualities(id);
@@ -540,7 +604,7 @@ alter table public.parties add column if not exists updated_by uuid;
 alter table public.transactions add column if not exists to_user_id uuid;
 alter table public.transactions add column if not exists expense_category_id uuid references public.expense_categories(id);
 alter table public.transactions add column if not exists updated_by uuid;
-alter table public.transactions add constraint transactions_transfer_not_self check (to_user_id is null or to_user_id <> handler_user_id);
+do $c$ begin alter table public.transactions add constraint transactions_transfer_not_self check (to_user_id is null or to_user_id <> handler_user_id); exception when duplicate_object then null; end $c$;
 
 -- Seed stock mapping for sale qualities whose name matches a nakasi quality exactly.
 update public.qualities s set stock_quality_id = n.id
@@ -548,7 +612,7 @@ from public.qualities n
 where s.kind = 'sale' and n.kind = 'nakasi' and lower(s.name_en) = lower(n.name_en) and s.stock_quality_id is null;
 
 -- ====== KILN ENTRIES (rehra loads raw bricks in, nakasi takes baked bricks out) ======
-create table public.kiln_entries (
+create table if not exists public.kiln_entries (
   id uuid primary key default gen_random_uuid(),
   stage public.kiln_stage not null,
   party_id uuid not null references public.parties(id),
@@ -567,11 +631,11 @@ create table public.kiln_entries (
   check (stage = 'rehra' or source_party_id is null),
   check (stage = 'rehra' or quality_id is not null)
 );
-create index kiln_entries_week_idx on public.kiln_entries (stage, week_id) where deleted_at is null;
-create index kiln_entries_party_idx on public.kiln_entries (party_id, entry_date) where deleted_at is null;
+create index if not exists kiln_entries_week_idx on public.kiln_entries (stage, week_id) where deleted_at is null;
+create index if not exists kiln_entries_party_idx on public.kiln_entries (party_id, entry_date) where deleted_at is null;
 
 -- ====== SALARY ACCRUALS (one row per employee per month) ======
-create table public.salary_months (
+create table if not exists public.salary_months (
   id uuid primary key default gen_random_uuid(),
   party_id uuid not null references public.parties(id),
   season_id uuid references public.seasons(id),
@@ -584,10 +648,10 @@ create table public.salary_months (
   updated_at timestamptz not null default now(),
   deleted_at timestamptz
 );
-create unique index salary_months_one_per_month on public.salary_months (party_id, entry_date) where deleted_at is null;
+create unique index if not exists salary_months_one_per_month on public.salary_months (party_id, entry_date) where deleted_at is null;
 
 -- ====== SALES ======
-create table public.sales (
+create table if not exists public.sales (
   id uuid primary key default gen_random_uuid(),
   invoice_no bigint generated always as identity unique,
   entry_date date not null,
@@ -604,10 +668,10 @@ create table public.sales (
   updated_at timestamptz not null default now(),
   deleted_at timestamptz
 );
-create index sales_customer_idx on public.sales (customer_id, entry_date) where deleted_at is null;
-create index sales_date_idx on public.sales (entry_date) where deleted_at is null;
+create index if not exists sales_customer_idx on public.sales (customer_id, entry_date) where deleted_at is null;
+create index if not exists sales_date_idx on public.sales (entry_date) where deleted_at is null;
 
-create table public.sale_items (
+create table if not exists public.sale_items (
   id uuid primary key default gen_random_uuid(),
   sale_id uuid not null references public.sales(id),
   quality_id uuid not null references public.qualities(id),
@@ -619,13 +683,13 @@ create table public.sale_items (
   updated_at timestamptz not null default now(),
   deleted_at timestamptz
 );
-create index sale_items_sale_idx on public.sale_items (sale_id) where deleted_at is null;
+create index if not exists sale_items_sale_idx on public.sale_items (sale_id) where deleted_at is null;
 
 alter table public.transactions add column if not exists sale_id uuid references public.sales(id);
 create index if not exists txn_sale_idx on public.transactions (sale_id) where deleted_at is null;
 
 -- ====== STOCK ADJUSTMENTS (breakage, shortage…) ======
-create table public.stock_adjustments (
+create table if not exists public.stock_adjustments (
   id uuid primary key default gen_random_uuid(),
   stock public.stock_kind not null,
   quality_id uuid references public.qualities(id),
@@ -642,7 +706,7 @@ create table public.stock_adjustments (
 );
 
 -- ====== CASH COUNTS (physical cash counted by an owner; expected cash is always derived) ======
-create table public.cash_counts (
+create table if not exists public.cash_counts (
   id uuid primary key default gen_random_uuid(),
   owner_user_id uuid not null,
   entry_date date not null,
@@ -668,14 +732,23 @@ $$;
 drop trigger if exists touch_parties on public.parties;
 drop trigger if exists touch_transactions on public.transactions;
 drop trigger if exists touch_production on public.production_entries;
+drop trigger if exists touch_parties on public.parties;
 create trigger touch_parties before update on public.parties for each row execute function public.touch_row();
+drop trigger if exists touch_transactions on public.transactions;
 create trigger touch_transactions before update on public.transactions for each row execute function public.touch_row();
+drop trigger if exists touch_production on public.production_entries;
 create trigger touch_production before update on public.production_entries for each row execute function public.touch_row();
+drop trigger if exists touch_kiln on public.kiln_entries;
 create trigger touch_kiln before update on public.kiln_entries for each row execute function public.touch_row();
+drop trigger if exists touch_salary_months on public.salary_months;
 create trigger touch_salary_months before update on public.salary_months for each row execute function public.touch_row();
+drop trigger if exists touch_sales on public.sales;
 create trigger touch_sales before update on public.sales for each row execute function public.touch_row();
+drop trigger if exists touch_sale_items on public.sale_items;
 create trigger touch_sale_items before update on public.sale_items for each row execute function public.touch_row();
+drop trigger if exists touch_stock_adj on public.stock_adjustments;
 create trigger touch_stock_adj before update on public.stock_adjustments for each row execute function public.touch_row();
+drop trigger if exists touch_cash_counts on public.cash_counts;
 create trigger touch_cash_counts before update on public.cash_counts for each row execute function public.touch_row();
 
 create or replace function public.season_for_date(_d date)
@@ -707,9 +780,13 @@ end;
 $$;
 
 drop trigger if exists validate_txn_season on public.transactions;
+drop trigger if exists guard_txn_season on public.transactions;
 create trigger guard_txn_season before insert or update on public.transactions for each row execute function public.guard_season();
+drop trigger if exists guard_salary_season on public.salary_months;
 create trigger guard_salary_season before insert or update on public.salary_months for each row execute function public.guard_season();
+drop trigger if exists guard_sales_season on public.sales;
 create trigger guard_sales_season before insert or update on public.sales for each row execute function public.guard_season();
+drop trigger if exists guard_stock_adj_season on public.stock_adjustments;
 create trigger guard_stock_adj_season before insert or update on public.stock_adjustments for each row execute function public.guard_season();
 
 create or replace function public.validate_kiln_entry()
@@ -743,6 +820,7 @@ begin
   return new;
 end;
 $$;
+drop trigger if exists validate_kiln on public.kiln_entries;
 create trigger validate_kiln before insert or update on public.kiln_entries for each row execute function public.validate_kiln_entry();
 
 create or replace function public.validate_sale()
@@ -754,6 +832,7 @@ begin
   return new;
 end;
 $$;
+drop trigger if exists validate_sale on public.sales;
 create trigger validate_sale before insert or update on public.sales for each row execute function public.validate_sale();
 
 create or replace function public.guard_sale_item()
@@ -768,6 +847,7 @@ begin
   return new;
 end;
 $$;
+drop trigger if exists guard_sale_item on public.sale_items;
 create trigger guard_sale_item before insert or update on public.sale_items for each row execute function public.guard_sale_item();
 
 create or replace function public.validate_salary_month()
@@ -779,14 +859,21 @@ begin
   return new;
 end;
 $$;
+drop trigger if exists validate_salary_month on public.salary_months;
 create trigger validate_salary_month before insert or update on public.salary_months for each row execute function public.validate_salary_month();
 
 -- ====== AUDIT (every insert/update/delete logged with old/new values) ======
+drop trigger if exists audit_kiln on public.kiln_entries;
 create trigger audit_kiln after insert or update or delete on public.kiln_entries for each row execute function public.audit_row();
+drop trigger if exists audit_salary_months on public.salary_months;
 create trigger audit_salary_months after insert or update or delete on public.salary_months for each row execute function public.audit_row();
+drop trigger if exists audit_sales on public.sales;
 create trigger audit_sales after insert or update or delete on public.sales for each row execute function public.audit_row();
+drop trigger if exists audit_sale_items on public.sale_items;
 create trigger audit_sale_items after insert or update or delete on public.sale_items for each row execute function public.audit_row();
+drop trigger if exists audit_stock_adj on public.stock_adjustments;
 create trigger audit_stock_adj after insert or update or delete on public.stock_adjustments for each row execute function public.audit_row();
+drop trigger if exists audit_cash_counts on public.cash_counts;
 create trigger audit_cash_counts after insert or update or delete on public.cash_counts for each row execute function public.audit_row();
 
 -- ====== ATOMIC SALE: invoice + lines + amount received now, in one transaction ======
@@ -841,7 +928,7 @@ drop view if exists public.party_earnings;
 
 -- Earnings credited to a party: patheer confirmed bricks, rehra/nakasi counts (rate on the entry date,
 -- half-up per entry), and posted monthly salaries.
-create view public.party_earnings
+create or replace view public.party_earnings
 with (security_invoker = true) as
 select x.party_id, sum(x.amount)::bigint as earnings
 from (
@@ -867,7 +954,7 @@ from (
 ) x
 group by x.party_id;
 
-create view public.sale_totals
+create or replace view public.sale_totals
 with (security_invoker = true) as
 select s.id as sale_id, s.invoice_no, s.customer_id, s.entry_date, s.season_id,
        coalesce(sum((si.quantity * si.rate_per_1000 + 500) / 1000), 0)::bigint as gross,
@@ -880,7 +967,7 @@ where s.deleted_at is null
 group by s.id;
 
 -- Mirrors txnEffect() in src/lib/kiln-math.ts.
-create view public.party_ledger
+create or replace view public.party_ledger
 with (security_invoker = true) as
 select p.id as party_id,
        p.kind as party_kind,
@@ -915,7 +1002,7 @@ left join (
 ) t on t.party_id = p.id
 where p.deleted_at is null;
 
-create view public.finished_stock
+create or replace view public.finished_stock
 with (security_invoker = true) as
 select q.id as quality_id, q.name_en, q.name_ur, q.category,
        coalesce(pr.n, 0)::bigint as produced,
@@ -941,7 +1028,7 @@ left join (
 ) ad on ad.quality_id = q.id
 where q.deleted_at is null and q.kind = 'nakasi';
 
-create view public.raw_stock
+create or replace view public.raw_stock
 with (security_invoker = true) as
 select m.made, l.loaded, a.adjusted, (m.made - l.loaded + a.adjusted)::bigint as balance
 from (select coalesce(sum(confirmed_count), 0)::bigint as made from public.production_entries where deleted_at is null) m,
@@ -964,37 +1051,56 @@ ALTER TABLE public.sale_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.stock_adjustments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.cash_counts ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "owners read kiln" ON public.kiln_entries;
 CREATE POLICY "owners read kiln" ON public.kiln_entries FOR SELECT TO authenticated USING (public.has_role(auth.uid(), 'owner'));
+DROP POLICY IF EXISTS "owners write kiln" ON public.kiln_entries;
 CREATE POLICY "owners write kiln" ON public.kiln_entries FOR INSERT TO authenticated WITH CHECK (public.has_role(auth.uid(), 'owner'));
+DROP POLICY IF EXISTS "owners update kiln" ON public.kiln_entries;
 CREATE POLICY "owners update kiln" ON public.kiln_entries FOR UPDATE TO authenticated USING (public.has_role(auth.uid(), 'owner'));
 
+DROP POLICY IF EXISTS "owners read salary" ON public.salary_months;
 CREATE POLICY "owners read salary" ON public.salary_months FOR SELECT TO authenticated USING (public.has_role(auth.uid(), 'owner'));
+DROP POLICY IF EXISTS "owners write salary" ON public.salary_months;
 CREATE POLICY "owners write salary" ON public.salary_months FOR INSERT TO authenticated WITH CHECK (public.has_role(auth.uid(), 'owner'));
+DROP POLICY IF EXISTS "owners update salary" ON public.salary_months;
 CREATE POLICY "owners update salary" ON public.salary_months FOR UPDATE TO authenticated USING (public.has_role(auth.uid(), 'owner'));
 
+DROP POLICY IF EXISTS "owners read sales" ON public.sales;
 CREATE POLICY "owners read sales" ON public.sales FOR SELECT TO authenticated USING (public.has_role(auth.uid(), 'owner'));
+DROP POLICY IF EXISTS "owners write sales" ON public.sales;
 CREATE POLICY "owners write sales" ON public.sales FOR INSERT TO authenticated WITH CHECK (public.has_role(auth.uid(), 'owner'));
+DROP POLICY IF EXISTS "owners update sales" ON public.sales;
 CREATE POLICY "owners update sales" ON public.sales FOR UPDATE TO authenticated USING (public.has_role(auth.uid(), 'owner'));
 
+DROP POLICY IF EXISTS "owners read sale items" ON public.sale_items;
 CREATE POLICY "owners read sale items" ON public.sale_items FOR SELECT TO authenticated USING (public.has_role(auth.uid(), 'owner'));
+DROP POLICY IF EXISTS "owners write sale items" ON public.sale_items;
 CREATE POLICY "owners write sale items" ON public.sale_items FOR INSERT TO authenticated WITH CHECK (public.has_role(auth.uid(), 'owner'));
+DROP POLICY IF EXISTS "owners update sale items" ON public.sale_items;
 CREATE POLICY "owners update sale items" ON public.sale_items FOR UPDATE TO authenticated USING (public.has_role(auth.uid(), 'owner'));
 
+DROP POLICY IF EXISTS "owners read stock adj" ON public.stock_adjustments;
 CREATE POLICY "owners read stock adj" ON public.stock_adjustments FOR SELECT TO authenticated USING (public.has_role(auth.uid(), 'owner'));
+DROP POLICY IF EXISTS "owners write stock adj" ON public.stock_adjustments;
 CREATE POLICY "owners write stock adj" ON public.stock_adjustments FOR INSERT TO authenticated WITH CHECK (public.has_role(auth.uid(), 'owner'));
+DROP POLICY IF EXISTS "owners update stock adj" ON public.stock_adjustments;
 CREATE POLICY "owners update stock adj" ON public.stock_adjustments FOR UPDATE TO authenticated USING (public.has_role(auth.uid(), 'owner'));
 
+DROP POLICY IF EXISTS "owners read cash counts" ON public.cash_counts;
 CREATE POLICY "owners read cash counts" ON public.cash_counts FOR SELECT TO authenticated USING (public.has_role(auth.uid(), 'owner'));
+DROP POLICY IF EXISTS "owners write cash counts" ON public.cash_counts;
 CREATE POLICY "owners write cash counts" ON public.cash_counts FOR INSERT TO authenticated WITH CHECK (public.has_role(auth.uid(), 'owner'));
+DROP POLICY IF EXISTS "owners update cash counts" ON public.cash_counts;
 CREATE POLICY "owners update cash counts" ON public.cash_counts FOR UPDATE TO authenticated USING (public.has_role(auth.uid(), 'owner'));
 
 -- ====== RECEIPT PHOTOS (private bucket, owners only) ======
 insert into storage.buckets (id, name, public) values ('receipts', 'receipts', false) on conflict (id) do nothing;
+DROP POLICY IF EXISTS "owners read receipts" ON storage.objects;
 CREATE POLICY "owners read receipts" ON storage.objects FOR SELECT TO authenticated
   USING (bucket_id = 'receipts' AND public.has_role(auth.uid(), 'owner'));
+DROP POLICY IF EXISTS "owners upload receipts" ON storage.objects;
 CREATE POLICY "owners upload receipts" ON storage.objects FOR INSERT TO authenticated
   WITH CHECK (bucket_id = 'receipts' AND public.has_role(auth.uid(), 'owner'));
-
 
 -- ===== 0006_auto_weeks.sql =====
 -- Weeks and seasons are created automatically from an entry's date; nobody has to set up a season first.
@@ -1078,6 +1184,7 @@ begin
 end;
 $$;
 
+drop trigger if exists a_fill_week on public.production_entries;
 create trigger a_fill_week before insert or update on public.production_entries for each row execute function public.fill_week();
+drop trigger if exists a_fill_week on public.kiln_entries;
 create trigger a_fill_week before insert or update on public.kiln_entries for each row execute function public.fill_week();
-
