@@ -202,3 +202,32 @@ describe("weekly register", () => {
     vi.useRealTimers();
   });
 });
+
+describe("expense khatta sheet", () => {
+  it("typing in the blank row adds an expense; a new category name creates the category", async () => {
+    WRITES.length = 0;
+    const { spy } = await mount("/expenses");
+    // The phone card and the desktop row both exist in the DOM (no CSS in tests); the desktop row is last.
+    const desc = (await screen.findAllByPlaceholderText("New kharcha… e.g. diesel", {}, { timeout: 4000 })).at(-1)!;
+    fireEvent.change(desc, { target: { value: "coal truck kiraya" } });
+    fireEvent.change(screen.getAllByPlaceholderText("Category").at(-1)!, { target: { value: "Diesel" } });
+    const amount = screen.getAllByPlaceholderText("0").at(-1)!;
+    fireEvent.change(amount, { target: { value: "200000" } });
+    await waitFor(() => expect(screen.getAllByText("Add").at(-1)).not.toBeDisabled());
+    fireEvent.keyDown(amount, { key: "Enter" });
+    await waitFor(() => expect(WRITES.some((w) => w.table === "transactions")).toBe(true), { timeout: 4000 });
+    expect(WRITES.find((w) => w.table === "transactions")!.payload).toMatchObject({
+      kind: "expense", direction: "out", amount: 200000, note: "coal truck kiraya", expense_category_id: "cat-1", handler_user_id: U1,
+    });
+    // Existing typed row shows in the sheet with its category; a brand-new category name is created on save.
+    expect(screen.getAllByDisplayValue("diesel").length).toBeGreaterThan(0);
+    WRITES.length = 0;
+    fireEvent.change(screen.getAllByPlaceholderText("New kharcha… e.g. diesel").at(-1)!, { target: { value: "milk home" } });
+    fireEvent.change(screen.getAllByPlaceholderText("Category").at(-1)!, { target: { value: "Home" } });
+    fireEvent.change(screen.getAllByPlaceholderText("0").at(-1)!, { target: { value: "2000" } });
+    fireEvent.keyDown(screen.getAllByPlaceholderText("0").at(-1)!, { key: "Enter" });
+    await waitFor(() => expect(WRITES.some((w) => w.table === "expense_categories")).toBe(true), { timeout: 4000 });
+    expect(WRITES.find((w) => w.table === "expense_categories")!.payload).toMatchObject({ name_en: "Home" });
+    spy.mockRestore();
+  });
+});

@@ -4,6 +4,24 @@ import { createContext, useContext, type ReactNode } from "react";
 
 
 const dict = {
+  // ---- Khatta sheet ----
+  sheetHelp: "Type like a spreadsheet: each cell saves when you leave it, Enter moves to the next cell.",
+  sheetEmpty: "No entries this month — type in the blank row above.",
+  kharchaTab: "Kharcha",
+  receivingTab: "Receiving",
+  summaryTab: "Summary",
+  kharchaOut: "Kharcha (out)",
+  receivingIn: "Receiving (in)",
+  description: "Description",
+  amountRs: "Amount (Rs.)",
+  by: "By",
+  newKharchaPlaceholder: "New kharcha… e.g. diesel",
+  newReceivingPlaceholder: "New receiving… e.g. scrap sold",
+  uncategorised: "Uncategorised",
+  kharchaByCategory: "Kharcha by category",
+  receivingByType: "Receiving by type",
+  byDay: "By day",
+  byOwner: "By owner",
   // ---- Layout / navigation ----
   home: "Home",
   seasonsAutoHelp: "Seasons (1 July – 30 June) and Thursday–Wednesday weeks are created automatically from entry dates. Use this page only to close a finished season (makes it read-only) or to set custom dates.",
