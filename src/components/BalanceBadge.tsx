@@ -1,3 +1,5 @@
+"use client";
+
 import { useT } from "@/lib/i18n";
 
 /** Balance > 0: we owe the party. Balance < 0: the party owes us. */

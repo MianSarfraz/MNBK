@@ -1,4 +1,6 @@
-import { Link } from "@tanstack/react-router";
+"use client";
+
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -194,13 +196,13 @@ export function PartyLedger({ id, initialFrom, initialTo }: { id: string; initia
       <PrintHeader title={`${t(kindKey(kind))} ${t("ledger")} — ${party.name}`} sub={periodText} />
       <div className="no-print flex flex-wrap items-start justify-between gap-3">
         <div>
-          <Link to="/people/$kind" params={{ kind }} className="text-sm text-primary underline">← {t(kindKey(kind))}</Link>
+          <Link href={`/people/${kind}`} className="text-sm text-primary underline">← {t(kindKey(kind))}</Link>
           <h1 className="text-3xl font-bold">{party.name}</h1>
           <div className="text-muted-foreground"><span className="num">{party.phone}</span> {party.address}</div>
           {!party.is_active && <span className="rounded bg-muted px-2 text-sm">{t("inactive")}</span>}
         </div>
         <div className="flex flex-wrap gap-2">
-          {kind === "customer" && <Link to="/sales/new" search={{ customer: id }} className="inline-flex h-10 items-center rounded-md bg-primary px-4 text-primary-foreground">{t("newSale")}</Link>}
+          {kind === "customer" && <Link href={`/sales/new?customer=${id}`} className="inline-flex h-10 items-center rounded-md bg-primary px-4 text-primary-foreground">{t("newSale")}</Link>}
           <Button variant="outline" onClick={() => window.print()}>{t("print")} / PDF</Button>
         </div>
       </div>
@@ -293,7 +295,7 @@ export function PartyLedger({ id, initialFrom, initialTo }: { id: string; initia
                 <tr key={i} className="border-t">
                   <td className="num whitespace-nowrap p-2">{fmtDate(r.date)}</td>
                   <td className="p-2">
-                    {r.ref?.startsWith("sale:") ? <Link to="/sales/$id" params={{ id: r.ref.slice(5) }} className="text-primary underline">{r.label}</Link> : r.label}
+                    {r.ref?.startsWith("sale:") ? <Link href={`/sales/${r.ref.slice(5)}`} className="text-primary underline">{r.label}</Link> : r.label}
                     {r.bricks ? <span className="num text-sm text-muted-foreground"> — {fmt(r.bricks)} {t("bricks")}</span> : null}
                     {r.pending ? <span className="text-sm text-warning-foreground"> ({fmt(r.pending)} {t("pending")})</span> : null}
                     {r.note ? <span className="text-sm text-muted-foreground"> — {r.note}</span> : null}

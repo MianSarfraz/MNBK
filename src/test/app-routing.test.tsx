@@ -1,26 +1,19 @@
-import { QueryClient } from "@tanstack/react-query";
-import { createRouter, rootRouteId } from "@tanstack/react-router";
+import fs from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { routeTree } from "@/routeTree.gen";
+const app = path.resolve(__dirname, "../app");
+const ROUTES = [
+  "", "auth", "(app)/dashboard", "(app)/weekly", "(app)/patheer", "(app)/patheer/[id]", "(app)/rehra", "(app)/nakasi",
+  "(app)/sales", "(app)/sales/new", "(app)/sales/[id]", "(app)/stock", "(app)/expenses", "(app)/owners", "(app)/reports",
+  "(app)/history", "(app)/seasons", "(app)/qualities", "(app)/people/[kind]", "(app)/party/[id]",
+];
 
-// Match routes without running loaders or rendering: loaders may need a server or
-// network the test run lacks, and jsdom never loads the stylesheets React waits on.
-describe("App routing", () => {
-  it("matches a page for / instead of falling back to not found", () => {
-    const router = createRouter({ routeTree, context: { queryClient: new QueryClient() } });
-
-    const matches = router.matchRoutes("/");
-
-    expect(matches.at(-1)?.routeId).not.toBe(rootRouteId);
+describe("App routes", () => {
+  it.each(ROUTES)("has a page for /%s", (r) => {
+    expect(fs.existsSync(path.join(app, r, "page.tsx"))).toBe(true);
   });
-
-  it.each([
-    "/dashboard", "/weekly", "/patheer", "/rehra", "/nakasi", "/sales", "/sales/new", "/stock", "/expenses",
-    "/owners", "/reports", "/history", "/people/customer", "/party/abc", "/sales/abc", "/patheer/abc",
-  ])("matches %s", (path) => {
-    const router = createRouter({ routeTree, context: { queryClient: new QueryClient() } });
-    const ids = router.matchRoutes(path).map((m) => m.routeId as string);
-    expect(ids.some((id) => id.startsWith("/_authenticated/"))).toBe(true);
+  it("signed-in pages share the owner shell", () => {
+    expect(fs.readFileSync(path.join(app, "(app)/layout.tsx"), "utf8")).toContain("AppShell");
   });
 });

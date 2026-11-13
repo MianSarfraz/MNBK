@@ -1,4 +1,6 @@
-import { Link } from "@tanstack/react-router";
+"use client";
+
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -115,7 +117,7 @@ export function KilnWeek({ stage }: { stage: Stage }) {
   return (
     <div className="space-y-4">
       <PageHeader title={t(stage === "rehra" ? "rehraKhatta" : "nakasiKhatta")} sub={t(stage === "rehra" ? "rehraHelp" : "nakasiHelp")}
-        actions={<Link to="/people/$kind" params={{ kind: stage }} className="inline-flex h-10 items-center rounded-md border bg-card px-4">{t("workersAndLedgers")}</Link>} />
+        actions={<Link href={`/people/${stage}`} className="inline-flex h-10 items-center rounded-md border bg-card px-4">{t("workersAndLedgers")}</Link>} />
       <SeasonWeekPicker sw={sw} />
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -136,7 +138,7 @@ export function KilnWeek({ stage }: { stage: Stage }) {
             <tbody>
               {totals.map(({ w, es, bricks, earn, kh, hasRate }) => (
                 <tr key={w.id} className="border-t align-top">
-                  <td className="sticky start-0 z-10 bg-card p-2 text-base font-bold"><Link to="/party/$id" params={{ id: w.id }} className="hover:underline">{w.name}</Link></td>
+                  <td className="sticky start-0 z-10 bg-card p-2 text-base font-bold"><Link href={`/party/${w.id}`} className="hover:underline">{w.name}</Link></td>
                   {cols.map((q) => {
                     const cell = es.filter((e) => e.quality_id === q.id);
                     const sum = cell.reduce((s, e) => s + Number(e.count), 0);
@@ -177,7 +179,7 @@ export function KilnWeek({ stage }: { stage: Stage }) {
               <tbody>
                 {totals.map(({ w, bricks, earn, kh, hasRate }) => (
                   <tr key={w.id} className="border-t align-top">
-                    <td className="p-2 font-bold"><Link to="/party/$id" params={{ id: w.id }} className="hover:underline">{w.name}</Link></td>
+                    <td className="p-2 font-bold"><Link href={`/party/${w.id}`} className="hover:underline">{w.name}</Link></td>
                     <td className="num p-2 text-center">{fmt(bricks)}</td>
                     <td className="num p-2 text-center">Rs {fmt(earn)}{!hasRate && <div className="text-xs text-destructive">{t("missingRate")}</div>}</td>
                     <td className="p-2 text-center"><KharchaCell amount={kh} disabled={readOnly || kh <= 0} onGive={(a, h) => giveKharcha(w.id, a, h)} /></td>

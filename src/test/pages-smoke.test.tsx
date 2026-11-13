@@ -1,10 +1,10 @@
-// Mounts every owner page through the real router against an in-memory fake of the database client,
+// Renders every owner screen against an in-memory fake of the database client,
 // so a render-time crash on any screen fails the build. No network is used.
-import { QueryClient } from "@tanstack/react-query";
-import { createMemoryHistory, createRouter, RouterProvider } from "@tanstack/react-router";
+import type { ReactNode } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor, cleanup } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-
+import { I18nProvider } from "@/lib/i18n";
 const U1 = "11111111-1111-1111-1111-111111111111";
 const S1 = "season-1", W1 = "week-1", P1 = "patheer-1", C1 = "customer-1", E1 = "employee-1", N1 = "nakasi-1", R1 = "rehra-1";
 const QA = "q-awal-n", QS = "q-awal-s", SALE = "sale-1";
@@ -78,18 +78,45 @@ vi.mock("@/integrations/supabase/client", () => ({
   },
 }));
 
+const nav = { params: {} as Record<string, string>, search: new URLSearchParams(), pathname: "/" };
+vi.mock("next/navigation", () => ({
+  useParams: () => nav.params,
+  useSearchParams: () => nav.search,
+  usePathname: () => nav.pathname,
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn(), back: vi.fn(), prefetch: vi.fn() }),
+  notFound: () => { throw new Error("NEXT_NOT_FOUND"); },
+}));
+vi.mock("next/link", () => ({
+  default: ({ href, children, ...rest }: { href: string; children: ReactNode }) => <a href={href} {...rest}>{children}</a>,
+}));
+
 afterEach(cleanup);
 
+/** Map a URL to the view that the app/ route renders, with its params. */
+async function viewFor(path: string) {
+  const [p, q] = path.split("?") as [string, string | undefined];
+  nav.pathname = p;
+  nav.search = new URLSearchParams(q ?? "");
+  nav.params = {};
+  const seg = p.split("/").filter(Boolean);
+  const v = (m: Promise<{ default: () => ReactNode }>) => m.then((x) => x.default);
+  if (seg[0] === "party" || (seg[0] === "patheer" && seg[1])) { nav.params = { id: seg[1]! }; return v(import("@/views/party")); }
+  if (seg[0] === "people") { nav.params = { kind: seg[1]! }; return v(import("@/views/people")); }
+  if (seg[0] === "sales" && seg[1] === "new") return v(import("@/views/new-sale"));
+  if (seg[0] === "sales" && seg[1]) { nav.params = { id: seg[1] }; return v(import("@/views/invoice")); }
+  if (seg[0] === "patheer") { const { PartyList } = await import("@/components/PartyList"); return () => <PartyList kind="patheer" />; }
+  if (seg[0] === "rehra" || seg[0] === "nakasi") { const { KilnWeek } = await import("@/components/KilnWeek"); const st = seg[0]; return () => <KilnWeek stage={st} />; }
+  const map: Record<string, string> = { dashboard: "dashboard", weekly: "weekly", sales: "sales", stock: "stock", expenses: "expenses", owners: "owners", reports: "reports", history: "history", seasons: "seasons", qualities: "qualities" };
+  return v(import(`@/views/${map[seg[0]!]}.tsx`));
+}
+
 async function mount(path: string) {
-  const { routeTree } = await import("@/routeTree.gen");
-  // jsdom can't host the <html> document shell or wait on stylesheets; render the app body only.
-  const opts = routeTree.options as unknown as Record<string, unknown>;
-  opts["shellComponent"] = undefined;
-  opts["head"] = undefined;
+  const View = await viewFor(path);
+  const { default: AppShell } = await import("@/views/app-shell");
   const errors: unknown[] = [];
   const spy = vi.spyOn(console, "error").mockImplementation((...a) => { errors.push(a); });
-  const router = createRouter({ routeTree, context: { queryClient: new QueryClient({ defaultOptions: { queries: { retry: false } } }) }, history: createMemoryHistory({ initialEntries: [path] }) });
-  render(<RouterProvider router={router} />);
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(<QueryClientProvider client={qc}><I18nProvider><AppShell><View /></AppShell></I18nProvider></QueryClientProvider>);
   return { errors, spy };
 }
 
@@ -121,7 +148,7 @@ describe("every page renders with data", () => {
   it.each(PAGES)("%s", async (path, expected) => {
     const { errors, spy } = await mount(path);
     await waitFor(() => expect(screen.getAllByText(expected).length).toBeGreaterThan(0), { timeout: 4000 });
-    expect(screen.queryByText(/This page didn't load/)).toBeNull();
+    expect(screen.queryByText(/NEXT_NOT_FOUND/)).toBeNull();
     spy.mockRestore();
     const real = errors.filter((e) => !/not wrapped in act|validateDOMNesting|cannot be a child|cannot contain a nested/i.test(String((e as unknown[])[0])));
     expect(real).toEqual([]);

@@ -9,8 +9,7 @@ export default defineConfig({
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
     include: ["src/**/*.{test,spec}.{ts,tsx}"],
+    env: { NEXT_PUBLIC_SUPABASE_URL: "http://localhost", NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "test" },
   },
-  resolve: {
-    alias: { "@": path.resolve(__dirname, "./src") },
-  },
+  resolve: { alias: { "@": path.resolve(__dirname, "./src") } },
 });

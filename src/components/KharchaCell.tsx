@@ -1,3 +1,5 @@
+"use client";
+
 import { useState } from "react";
 import { fmt, useT } from "@/lib/i18n";
 import { parseWhole } from "@/lib/kiln-math";

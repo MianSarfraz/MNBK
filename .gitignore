@@ -10,10 +10,10 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+.next
+next-env.d.ts
+*.tsbuildinfo
 .output
-.vinxi
-.tanstack/**
-.nitro
 *.local
 
 # Wrangler / Cloudflare

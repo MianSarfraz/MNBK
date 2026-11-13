@@ -3,7 +3,7 @@
 Urdu-first (RTL, English toggle), mobile-first brick-kiln management: patheer, rehra, nakasi, sales, stock,
 expense and owner khattas, organised by Thursday–Wednesday weeks within seasons.
 
-Stack: TanStack Start (React + TypeScript), Supabase (Postgres + auth + storage, RLS), Tailwind.
+Stack: Next.js 15 (App Router, React 19, TypeScript), Supabase (Postgres + auth + storage, RLS, cookie sessions via `@supabase/ssr`), Tailwind CSS 4.
 
 ## Screens
 
@@ -11,8 +11,8 @@ Stack: TanStack Start (React + TypeScript), Supabase (Postgres + auth + storage,
 | --- | --- |
 | `/weekly` | Patheer register: estimated → confirmed per day, earnings, weekly kharcha. Autosaves; unsaved cells are queued on the device and retried. |
 | `/rehra`, `/nakasi` | Weekly loads into / baked output out of the kiln, earnings and kharcha per worker. |
-| `/people/:kind`, `/party/:id` | Every person (patheer, rehra, nakasi, employee, customer, vendor): balance, running ledger, period statements (week / month / season / custom), settle-now, payments, rates, salary posting, print / PDF. |
-| `/sales`, `/sales/new`, `/sales/:id` | Multi-quality invoices with vehicle / driver, money received now, stock warning, printable Urdu invoice, later payments. |
+| `/people/[kind]`, `/party/[id]` | Every person (patheer, rehra, nakasi, employee, customer, vendor): balance, running ledger, period statements (week / month / season / custom), settle-now, payments, rates, salary posting, print / PDF. |
+| `/sales`, `/sales/new`, `/sales/[id]` | Multi-quality invoices with vehicle / driver, money received now, stock warning, printable Urdu invoice, later payments. |
 | `/stock` | Finished stock per quality (nakasi − sales ± adjustments), raw stock at the yard (confirmed − loaded ± adjustments). |
 | `/expenses` | The central transactions table: every payment in and out, expenses with categories and receipt photos, owner transfers. |
 | `/owners` | Each brother's paid / received / net, 50/50 settlement between them, cash-in-hand vs counted cash. |
@@ -34,12 +34,10 @@ adjustments, cash counts, the receipts bucket and the views above. Apply all mig
 
 ## Setup
 
-1. Create `.env` with your Supabase project:
+1. Copy `.env.example` to `.env` and set your Supabase project:
    ```
-   VITE_SUPABASE_URL="https://<project>.supabase.co"
-   VITE_SUPABASE_PUBLISHABLE_KEY="sb_publishable_…"
-   SUPABASE_URL="https://<project>.supabase.co"
-   SUPABASE_PUBLISHABLE_KEY="sb_publishable_…"
+   NEXT_PUBLIC_SUPABASE_URL="https://<project-ref>.supabase.co"
+   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="sb_publishable_…"
    ```
 2. On an empty project, run every file in `drizzle/migrations/` in order (Supabase SQL editor), or
    `DATABASE_URL=postgres://… npx drizzle-kit migrate`.
@@ -49,8 +47,19 @@ adjustments, cash counts, the receipts bucket and the views above. Apply all mig
 
 ```sh
 npm install
-npm run dev      # http://localhost:8080
-npm test         # math, ledger, export, routing and page smoke tests
-npm run build    # production bundle in .output/ (host auto-detected; NITRO_PRESET=node-server for plain Node)
-npm start        # run the Node build
+npm run dev        # http://localhost:8080
+npm test           # math, ledger, export, routing and page smoke tests
+npm run typecheck
+npm run build      # production build
+npm start          # serve the production build
 ```
+
+Deploy anywhere Next.js runs (Vercel is zero-config): set the two `NEXT_PUBLIC_SUPABASE_*` variables and, in
+Supabase → Authentication → URL configuration, add your site URL so confirmation emails link back correctly.
+
+## Layout
+
+- `src/app/` — routes. `(app)/` pages share the signed-in shell; `auth/` is the only public page.
+- `src/views/` — client screens; `src/components/` — shared UI (ledger, lists, kiln week, form kit).
+- `src/lib/kiln-math.ts` — all money/brick math; `src/integrations/supabase/` — clients, middleware helper, types.
+- `src/middleware.ts` — session refresh + redirect to `/auth`.
