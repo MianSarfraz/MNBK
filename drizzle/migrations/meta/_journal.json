@@ -36,6 +36,13 @@
       "when": 1794513985419,
       "tag": "0004_fix_audit_row_uuid_cast",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1794700000000,
+      "tag": "0005_phase2_4_khattas",
+      "breakpoints": true
     }
   ]
 }

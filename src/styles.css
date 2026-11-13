@@ -105,7 +105,12 @@
   background-image: repeating-linear-gradient(to bottom, transparent 0, transparent 39px, var(--color-ledger-line) 39px, var(--color-ledger-line) 40px);
 }
 
+.print-only { display: none; }
 @media print {
   .no-print { display: none !important; }
+  .print-only { display: block !important; }
+  main { max-width: none !important; padding: 0 !important; }
+  table { page-break-inside: auto; }
+  tr { page-break-inside: avoid; }
   body { background: white; }
 }

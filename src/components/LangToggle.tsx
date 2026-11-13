@@ -9,3 +9,13 @@ export function LangToggle() {
     </Button>
   );
 }
+
+/** Switch between English (123) and Urdu (۱۲۳) numerals for displayed numbers. */
+export function NumeralsToggle() {
+  const { numerals, setNumerals } = useT();
+  return (
+    <Button variant="outline" size="sm" className="num" title="Numerals" onClick={() => setNumerals(numerals === "ur" ? "en" : "ur")}>
+      {numerals === "ur" ? "123" : "۱۲۳"}
+    </Button>
+  );
+}

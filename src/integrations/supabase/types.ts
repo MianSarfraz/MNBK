@@ -85,6 +85,9 @@ export type Database = {
       }
       parties: {
         Row: {
+          address: string | null
+          monthly_salary: number
+          updated_by: string | null
           created_at: string
           created_by: string
           deleted_at: string | null
@@ -99,6 +102,9 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          address?: string | null
+          monthly_salary?: number
+          updated_by?: string | null
           created_at?: string
           created_by: string
           deleted_at?: string | null
@@ -113,6 +119,9 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          address?: string | null
+          monthly_salary?: number
+          updated_by?: string | null
           created_at?: string
           created_by?: string
           deleted_at?: string | null
@@ -297,6 +306,7 @@ export type Database = {
           name_en: string
           name_ur: string
           sort_order: number
+          stock_quality_id: string | null
           updated_at: string
         }
         Insert: {
@@ -310,6 +320,7 @@ export type Database = {
           name_en: string
           name_ur: string
           sort_order?: number
+          stock_quality_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -323,6 +334,7 @@ export type Database = {
           name_en?: string
           name_ur?: string
           sort_order?: number
+          stock_quality_id?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -380,6 +392,10 @@ export type Database = {
           party_id: string | null
           receipt_url: string | null
           season_id: string | null
+          expense_category_id: string | null
+          sale_id: string | null
+          to_user_id: string | null
+          updated_by: string | null
           updated_at: string
           week_id: string | null
         }
@@ -399,6 +415,10 @@ export type Database = {
           party_id?: string | null
           receipt_url?: string | null
           season_id?: string | null
+          expense_category_id?: string | null
+          sale_id?: string | null
+          to_user_id?: string | null
+          updated_by?: string | null
           updated_at?: string
           week_id?: string | null
         }
@@ -418,6 +438,10 @@ export type Database = {
           party_id?: string | null
           receipt_url?: string | null
           season_id?: string | null
+          expense_category_id?: string | null
+          sale_id?: string | null
+          to_user_id?: string | null
+          updated_by?: string | null
           updated_at?: string
           week_id?: string | null
         }
@@ -511,46 +535,360 @@ export type Database = {
           },
         ]
       }
+      cash_counts: {
+        Row: {
+          counted: number
+          created_at: string
+          created_by: string
+          deleted_at: string | null
+          entry_date: string
+          id: string
+          note: string | null
+          owner_user_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          counted: number
+          created_at?: string
+          created_by?: string
+          deleted_at?: string | null
+          entry_date: string
+          id?: string
+          note?: string | null
+          owner_user_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          counted?: number
+          created_at?: string
+          created_by?: string
+          deleted_at?: string | null
+          entry_date?: string
+          id?: string
+          note?: string | null
+          owner_user_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      kiln_entries: {
+        Row: {
+          count: number
+          created_at: string
+          created_by: string
+          deleted_at: string | null
+          entry_date: string
+          id: string
+          notes: string | null
+          party_id: string
+          quality_id: string | null
+          season_id: string
+          source_party_id: string | null
+          stage: Database["public"]["Enums"]["kiln_stage"]
+          updated_at: string
+          updated_by: string | null
+          week_id: string
+        }
+        Insert: {
+          count: number
+          created_at?: string
+          created_by?: string
+          deleted_at?: string | null
+          entry_date: string
+          id?: string
+          notes?: string | null
+          party_id: string
+          quality_id?: string | null
+          season_id: string
+          source_party_id?: string | null
+          stage: Database["public"]["Enums"]["kiln_stage"]
+          updated_at?: string
+          updated_by?: string | null
+          week_id: string
+        }
+        Update: {
+          count?: number
+          created_at?: string
+          created_by?: string
+          deleted_at?: string | null
+          entry_date?: string
+          id?: string
+          notes?: string | null
+          party_id?: string
+          quality_id?: string | null
+          season_id?: string
+          source_party_id?: string | null
+          stage?: Database["public"]["Enums"]["kiln_stage"]
+          updated_at?: string
+          updated_by?: string | null
+          week_id?: string
+        }
+        Relationships: []
+      }
+      salary_months: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string
+          deleted_at: string | null
+          entry_date: string
+          id: string
+          note: string | null
+          party_id: string
+          season_id: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by?: string
+          deleted_at?: string | null
+          entry_date: string
+          id?: string
+          note?: string | null
+          party_id: string
+          season_id?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by?: string
+          deleted_at?: string | null
+          entry_date?: string
+          id?: string
+          note?: string | null
+          party_id?: string
+          season_id?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      sale_items: {
+        Row: {
+          created_at: string
+          created_by: string
+          deleted_at: string | null
+          id: string
+          quality_id: string
+          quantity: number
+          rate_per_1000: number
+          sale_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string
+          deleted_at?: string | null
+          id?: string
+          quality_id: string
+          quantity: number
+          rate_per_1000: number
+          sale_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          deleted_at?: string | null
+          id?: string
+          quality_id?: string
+          quantity?: number
+          rate_per_1000?: number
+          sale_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      sales: {
+        Row: {
+          created_at: string
+          created_by: string
+          customer_id: string
+          deleted_at: string | null
+          delivery_charges: number
+          discount: number
+          driver_name: string | null
+          entry_date: string
+          id: string
+          invoice_no: number
+          note: string | null
+          season_id: string | null
+          updated_at: string
+          updated_by: string | null
+          vehicle_no: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string
+          customer_id: string
+          deleted_at?: string | null
+          delivery_charges?: number
+          discount?: number
+          driver_name?: string | null
+          entry_date: string
+          id?: string
+          invoice_no?: number
+          note?: string | null
+          season_id?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          vehicle_no?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          customer_id?: string
+          deleted_at?: string | null
+          delivery_charges?: number
+          discount?: number
+          driver_name?: string | null
+          entry_date?: string
+          id?: string
+          invoice_no?: number
+          note?: string | null
+          season_id?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          vehicle_no?: string | null
+        }
+        Relationships: []
+      }
+      stock_adjustments: {
+        Row: {
+          created_at: string
+          created_by: string
+          deleted_at: string | null
+          delta: number
+          entry_date: string
+          id: string
+          quality_id: string | null
+          reason: string
+          season_id: string | null
+          stock: Database["public"]["Enums"]["stock_kind"]
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string
+          deleted_at?: string | null
+          delta: number
+          entry_date: string
+          id?: string
+          quality_id?: string | null
+          reason: string
+          season_id?: string | null
+          stock: Database["public"]["Enums"]["stock_kind"]
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          deleted_at?: string | null
+          delta?: number
+          entry_date?: string
+          id?: string
+          quality_id?: string | null
+          reason?: string
+          season_id?: string | null
+          stock?: Database["public"]["Enums"]["stock_kind"]
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
+      finished_stock: {
+        Row: {
+          adjusted: number | null
+          balance: number | null
+          category: Database["public"]["Enums"]["quality_category"] | null
+          name_en: string | null
+          name_ur: string | null
+          produced: number | null
+          quality_id: string | null
+          sold: number | null
+        }
+        Relationships: []
+      }
       party_earnings: {
         Row: {
           earnings: number | null
           party_id: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "production_entries_party_id_fkey"
-            columns: ["party_id"]
-            isOneToOne: false
-            referencedRelation: "parties"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "production_entries_party_id_fkey"
-            columns: ["party_id"]
-            isOneToOne: false
-            referencedRelation: "party_ledger"
-            referencedColumns: ["party_id"]
-          },
-        ]
+        Relationships: []
       }
       party_ledger: {
         Row: {
           balance: number | null
+          credits: number | null
           deductions: number | null
           earnings: number | null
           kharcha: number | null
           opening_balance: number | null
-          paid_by_them: number | null
-          paid_by_us: number | null
           party_id: string | null
           party_kind: Database["public"]["Enums"]["party_kind"] | null
+          payments_in: number | null
+          payments_out: number | null
+          sales: number | null
+        }
+        Relationships: []
+      }
+      raw_stock: {
+        Row: {
+          adjusted: number | null
+          balance: number | null
+          loaded: number | null
+          made: number | null
+        }
+        Relationships: []
+      }
+      sale_totals: {
+        Row: {
+          bricks: number | null
+          customer_id: string | null
+          delivery_charges: number | null
+          discount: number | null
+          entry_date: string | null
+          gross: number | null
+          invoice_no: number | null
+          sale_id: string | null
+          season_id: string | null
+          total: number | null
         }
         Relationships: []
       }
     }
     Functions: {
+      create_sale: {
+        Args: {
+          _customer_id: string
+          _delivery: number
+          _discount: number
+          _driver_name: string
+          _entry_date: string
+          _handler: string | null
+          _items: Json
+          _method: Database["public"]["Enums"]["pay_method"]
+          _note: string
+          _paid: number
+          _vehicle_no: string
+        }
+        Returns: string
+      }
+      season_for_date: { Args: { _d: string }; Returns: string }
       claim_owner_role: { Args: never; Returns: boolean }
       has_role: {
         Args: {
@@ -562,6 +900,7 @@ export type Database = {
     }
     Enums: {
       app_role: "owner" | "munshi"
+      kiln_stage: "rehra" | "nakasi"
       party_kind:
         | "patheer"
         | "rehra"
@@ -573,6 +912,7 @@ export type Database = {
       quality_category: "normal" | "nine_t" | "special" | "other"
       quality_kind: "sale" | "nakasi"
       rate_kind: "earning" | "kharcha"
+      stock_kind: "raw" | "finished"
       txn_direction: "in" | "out"
       txn_kind:
         | "kharcha"
@@ -583,6 +923,7 @@ export type Database = {
         | "sale_receipt"
         | "adjustment"
         | "other"
+        | "owner_transfer"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -711,6 +1052,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["owner", "munshi"],
+      kiln_stage: ["rehra", "nakasi"],
       party_kind: [
         "patheer",
         "rehra",
@@ -723,6 +1065,7 @@ export const Constants = {
       quality_category: ["normal", "nine_t", "special", "other"],
       quality_kind: ["sale", "nakasi"],
       rate_kind: ["earning", "kharcha"],
+      stock_kind: ["raw", "finished"],
       txn_direction: ["in", "out"],
       txn_kind: [
         "kharcha",
@@ -733,6 +1076,7 @@ export const Constants = {
         "sale_receipt",
         "adjustment",
         "other",
+        "owner_transfer",
       ],
     },
   },

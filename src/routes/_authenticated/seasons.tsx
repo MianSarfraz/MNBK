@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { useT } from "@/lib/i18n";
+import { fmtDate, useT } from "@/lib/i18n";
 import { generateWeeks } from "@/lib/kiln-math";
 import { myId, useSeasons, useWeeks } from "@/lib/data";
 import { Button } from "@/components/ui/button";
@@ -66,7 +66,7 @@ function SeasonsPage() {
             <div className="flex items-center justify-between gap-2">
               <button className="text-start" onClick={() => setSel(sel === s.id ? undefined : s.id)}>
                 <div className="text-lg font-bold">{s.name}</div>
-                <div className="num text-sm text-muted-foreground">{s.start_date} → {s.end_date}</div>
+                <div className="num text-sm text-muted-foreground">{fmtDate(s.start_date)} → {fmtDate(s.end_date)}</div>
               </button>
               <span className={s.is_closed ? "text-destructive" : "text-success"}>{s.is_closed ? t("closed") : t("open")}</span>
               <ConfirmButton size="sm" variant="outline" description={s.is_closed ? t("reopen") : t("close")} onConfirm={() => toggleClose(s.id, s.is_closed)}>
@@ -76,7 +76,7 @@ function SeasonsPage() {
             {sel === s.id && (
               <div className="mt-3 grid grid-cols-2 gap-1 text-sm md:grid-cols-3">
                 {(weeks.data ?? []).map((w) => (
-                  <div key={w.id} className="num rounded bg-muted px-2 py-1">#{w.week_number} {w.start_date.slice(5)}→{w.end_date.slice(5)}</div>
+                  <div key={w.id} className="num rounded bg-muted px-2 py-1">#{w.week_number} {fmtDate(w.start_date).slice(0, 5)}→{fmtDate(w.end_date).slice(0, 5)}</div>
                 ))}
               </div>
             )}

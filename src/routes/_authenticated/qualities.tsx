@@ -40,11 +40,14 @@ function QualitiesPage() {
     setEn(""); setUr("");
     qc.invalidateQueries({ queryKey: ["qualities"] });
   }
-  async function update(id: string, patch: { is_active?: boolean; name_en?: string; name_ur?: string }) {
+  async function update(id: string, patch: { is_active?: boolean; name_en?: string; name_ur?: string; category?: Cat; stock_quality_id?: string | null }) {
     const { error } = await supabase.from("qualities").update(patch).eq("id", id);
     if (error) toast.error(error.message);
     qc.invalidateQueries({ queryKey: ["qualities"] });
+    qc.invalidateQueries({ queryKey: ["finished-stock"] });
   }
+  const nakasiQ = (q.data ?? []).filter((x) => x.kind === "nakasi");
+  const catLabel: Record<Cat, string> = { normal: t("catNormal"), nine_t: t("cat9t"), special: t("catSpecial"), other: t("catOther") };
 
   const groups: Kind[] = ["sale", "nakasi"];
   return (
@@ -56,20 +59,32 @@ function QualitiesPage() {
           <option value="sale">{t("kindSale")}</option><option value="nakasi">{t("kindNakasi")}</option>
         </select>
         <select className="h-11 rounded-md border bg-background px-2" value={cat} onChange={(e) => setCat(e.target.value as Cat)}>
-          <option value="normal">normal</option><option value="nine_t">9T</option><option value="special">special</option><option value="other">other</option>
+          {(Object.keys(catLabel) as Cat[]).map((c) => <option key={c} value={c}>{catLabel[c]}</option>)}
         </select>
         <Button size="lg">{t("add")}</Button>
       </form>
+      <p className="text-sm text-muted-foreground">{t("stockFromHelp")}</p>
       {groups.map((g) => (
         <section key={g}>
           <h2 className="mb-2 text-xl font-bold">{g === "sale" ? t("kindSale") : t("kindNakasi")}</h2>
           <div className="grid gap-2 md:grid-cols-2">
             {(q.data ?? []).filter((x) => x.kind === g).map((x) => (
-              <div key={x.id} className="flex items-center gap-2 rounded-lg border bg-card p-3">
-                <Input className="h-10" defaultValue={lang === "ur" ? x.name_ur : x.name_en}
+              <div key={x.id} className={`flex flex-wrap items-center gap-2 rounded-lg border bg-card p-3 ${x.is_active ? "" : "opacity-60"}`}>
+                <Input className="h-10 min-w-32 flex-1" defaultValue={lang === "ur" ? x.name_ur : x.name_en}
                   onBlur={(e) => { const v = e.target.value.trim(); const cur = lang === "ur" ? x.name_ur : x.name_en; if (v && v !== cur) update(x.id, lang === "ur" ? { name_ur: v } : { name_en: v }); }} />
-                <span className="text-xs text-muted-foreground">{x.category}</span>
+                <select className="h-10 rounded-md border bg-background px-1 text-sm" value={x.category} onChange={(e) => update(x.id, { category: e.target.value as Cat })}>
+                  {(Object.keys(catLabel) as Cat[]).map((c) => <option key={c} value={c}>{catLabel[c]}</option>)}
+                </select>
                 <Switch checked={x.is_active} onCheckedChange={(v) => update(x.id, { is_active: v })} />
+                {g === "sale" && (
+                  <label className="flex w-full items-center gap-2 text-sm">
+                    <span className="text-muted-foreground">{t("stockFrom")}</span>
+                    <select className={`h-9 flex-1 rounded-md border bg-background px-1 ${x.stock_quality_id ? "" : "border-warning"}`} value={x.stock_quality_id ?? ""} onChange={(e) => update(x.id, { stock_quality_id: e.target.value || null })}>
+                      <option value="">{t("notTracked")}</option>
+                      {nakasiQ.map((n) => <option key={n.id} value={n.id}>{lang === "ur" ? n.name_ur : n.name_en}</option>)}
+                    </select>
+                  </label>
+                )}
               </div>
             ))}
           </div>

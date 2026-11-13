@@ -14,4 +14,13 @@ describe("App routing", () => {
 
     expect(matches.at(-1)?.routeId).not.toBe(rootRouteId);
   });
+
+  it.each([
+    "/dashboard", "/weekly", "/patheer", "/rehra", "/nakasi", "/sales", "/sales/new", "/stock", "/expenses",
+    "/owners", "/reports", "/history", "/people/customer", "/party/abc", "/sales/abc", "/patheer/abc",
+  ])("matches %s", (path) => {
+    const router = createRouter({ routeTree, context: { queryClient: new QueryClient() } });
+    const ids = router.matchRoutes(path).map((m) => m.routeId as string);
+    expect(ids.some((id) => id.startsWith("/_authenticated/"))).toBe(true);
+  });
 });
