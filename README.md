@@ -3,8 +3,7 @@
 Urdu-first (RTL, English toggle), mobile-first brick-kiln management: patheer, rehra, nakasi, sales, stock,
 expense and owner khattas, organised by Thursday–Wednesday weeks within seasons.
 
-Built with [Lovable](https://lovable.dev/projects/c7208240-a98b-4c29-bfd1-93eb96db1bb8) — TanStack Start (React + TypeScript),
-Lovable Cloud (Postgres + auth + storage, RLS), Tailwind.
+Stack: TanStack Start (React + TypeScript), Supabase (Postgres + auth + storage, RLS), Tailwind.
 
 ## Screens
 
@@ -31,12 +30,27 @@ Lovable Cloud (Postgres + auth + storage, RLS), Tailwind.
 ## Database
 
 Migrations are in `drizzle/migrations/`. `0005_phase2_4_khattas.sql` adds kiln entries, salaries, sales, stock
-adjustments, cash counts, the receipts bucket and the views above. Apply it before using the new screens.
+adjustments, cash counts, the receipts bucket and the views above. Apply all migrations in order on a new database.
+
+## Setup
+
+1. Create `.env` with your Supabase project:
+   ```
+   VITE_SUPABASE_URL="https://<project>.supabase.co"
+   VITE_SUPABASE_PUBLISHABLE_KEY="sb_publishable_…"
+   SUPABASE_URL="https://<project>.supabase.co"
+   SUPABASE_PUBLISHABLE_KEY="sb_publishable_…"
+   ```
+2. On an empty project, run every file in `drizzle/migrations/` in order (Supabase SQL editor), or
+   `DATABASE_URL=postgres://… npx drizzle-kit migrate`.
+3. Sign up both owners (the first two accounts become owners), then turn off sign-ups in Supabase Auth settings.
 
 ## Development
 
 ```sh
-npm i        # or bun install
-npm run dev
-npm test     # math, ledger, export, routing and page smoke tests
+npm install
+npm run dev      # http://localhost:8080
+npm test         # math, ledger, export, routing and page smoke tests
+npm run build    # production bundle in .output/ (host auto-detected; NITRO_PRESET=node-server for plain Node)
+npm start        # run the Node build
 ```

@@ -284,7 +284,7 @@ const dict = {
   pnlHelp: ["کاریگروں کی کمائی خرچ میں شامل ہے؛ خرچہ (ایڈوانس) الگ سے نہیں گنا جاتا تاکہ دوہرا نہ ہو۔", "Worker earnings are counted as cost; kharcha is an advance against them, so it is not counted twice."],
   outstanding: ["بقایا جات", "Outstanding balances"],
   backupExport: ["بیک اپ اور مکمل ڈاؤن لوڈ", "Backup & full export"],
-  backupHelp: ["ڈیٹا بیس کا روزانہ خودکار بیک اپ Lovable Cloud کرتا ہے۔ یہاں سے تمام ریکارڈ (JSON اور Excel) اپنے پاس محفوظ کریں۔ رسیدوں کی تصاویر اس میں شامل نہیں۔", "Lovable Cloud takes daily automatic database backups. Download every record here (JSON and Excel) to keep your own copy. Receipt photos are not included."],
+  backupHelp: ["یہاں سے تمام ریکارڈ (JSON اور Excel) باقاعدگی سے ڈاؤن لوڈ کر کے محفوظ رکھیں۔ Supabase کے پیڈ پلان پر روزانہ خودکار بیک اپ بھی ہوتا ہے۔ رسیدوں کی تصاویر اس میں شامل نہیں۔", "Download every record here (JSON and Excel) regularly and keep the copy safe. Supabase paid plans also take daily automatic backups. Receipt photos are not included."],
   fullExport: ["مکمل ڈیٹا ڈاؤن لوڈ کریں", "Download full export"],
   exportDone: ["ڈاؤن لوڈ مکمل", "Export downloaded"],
   balances: ["بقایا جات", "Balances"],
