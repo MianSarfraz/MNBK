@@ -167,7 +167,7 @@ export default function Weekly() {
       </div>
       <p className="text-sm text-muted-foreground">↑ {t("estimated")} &nbsp; ↓ {t("confirmed")} &nbsp; <span className="rounded bg-warning/30 px-1">{t("pending")}</span> &nbsp; <span className="text-destructive">{t("diff")}</span></p>
 
-      <div className="register-paper overflow-x-auto rounded-xl border-2 border-primary/30">
+      <div className="overflow-x-auto rounded-xl border-2 border-primary/30 bg-card">
         <table className="w-full border-collapse text-sm">
           <thead className="sticky top-0 bg-secondary">
             <tr>
