@@ -221,10 +221,10 @@ export type Database = {
           id?: string
           notes?: string | null
           party_id: string
-          season_id: string
+          season_id?: string
           updated_at?: string
           updated_by?: string | null
-          week_id: string
+          week_id?: string
         }
         Update: {
           confirmed_at?: string | null
@@ -602,12 +602,12 @@ export type Database = {
           notes?: string | null
           party_id: string
           quality_id?: string | null
-          season_id: string
+          season_id?: string
           source_party_id?: string | null
           stage: Database["public"]["Enums"]["kiln_stage"]
           updated_at?: string
           updated_by?: string | null
-          week_id: string
+          week_id?: string
         }
         Update: {
           count?: number
@@ -872,6 +872,8 @@ export type Database = {
       }
     }
     Functions: {
+      ensure_season: { Args: { _d: string }; Returns: string }
+      ensure_week: { Args: { _d: string }; Returns: string }
       create_sale: {
         Args: {
           _customer_id: string

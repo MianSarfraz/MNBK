@@ -14,7 +14,7 @@ type Kind = "sale" | "nakasi";
 type Cat = "normal" | "nine_t" | "special" | "other";
 
 export default function QualitiesPage() {
-  const { t, lang } = useT();
+  const { t } = useT();
   const qc = useQueryClient();
   const q = useQuery({
     queryKey: ["qualities"],
@@ -25,15 +25,14 @@ export default function QualitiesPage() {
     },
   });
   const [en, setEn] = useState("");
-  const [ur, setUr] = useState("");
   const [kind, setKind] = useState<Kind>("sale");
   const [cat, setCat] = useState<Cat>("normal");
 
   async function add(e: React.FormEvent) {
     e.preventDefault();
-    const { error } = await supabase.from("qualities").insert({ name_en: en, name_ur: ur, kind, category: cat, sort_order: 100, created_by: await myId() });
+    const { error } = await supabase.from("qualities").insert({ name_en: en, name_ur: en, kind, category: cat, sort_order: 100, created_by: await myId() });
     if (error) return void toast.error(error.message);
-    setEn(""); setUr("");
+    setEn("");
     qc.invalidateQueries({ queryKey: ["qualities"] });
   }
   async function update(id: string, patch: { is_active?: boolean; name_en?: string; name_ur?: string; category?: Cat; stock_quality_id?: string | null }) {
@@ -47,10 +46,9 @@ export default function QualitiesPage() {
 
   const groups: Kind[] = ["sale", "nakasi"];
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <form onSubmit={add} className="flex flex-wrap items-end gap-2 rounded-xl border bg-card p-4">
-        <Input className="h-11 w-40" placeholder="English" value={en} onChange={(e) => setEn(e.target.value)} required />
-        <Input className="h-11 w-40" placeholder="اردو" value={ur} onChange={(e) => setUr(e.target.value)} required />
+        <Input className="h-11 w-40" placeholder={t("name")} value={en} onChange={(e) => setEn(e.target.value)} required />
         <select className="h-11 rounded-md border bg-background px-2" value={kind} onChange={(e) => setKind(e.target.value as Kind)}>
           <option value="sale">{t("kindSale")}</option><option value="nakasi">{t("kindNakasi")}</option>
         </select>
@@ -66,8 +64,8 @@ export default function QualitiesPage() {
           <div className="grid gap-2 md:grid-cols-2">
             {(q.data ?? []).filter((x) => x.kind === g).map((x) => (
               <div key={x.id} className={`flex flex-wrap items-center gap-2 rounded-lg border bg-card p-3 ${x.is_active ? "" : "opacity-60"}`}>
-                <Input className="h-10 min-w-32 flex-1" defaultValue={lang === "ur" ? x.name_ur : x.name_en}
-                  onBlur={(e) => { const v = e.target.value.trim(); const cur = lang === "ur" ? x.name_ur : x.name_en; if (v && v !== cur) update(x.id, lang === "ur" ? { name_ur: v } : { name_en: v }); }} />
+                <Input className="h-10 min-w-32 flex-1" defaultValue={x.name_en}
+                  onBlur={(e) => { const v = e.target.value.trim(); const cur = x.name_en; if (v && v !== cur) update(x.id, { name_en: v, name_ur: v }); }} />
                 <select className="h-10 rounded-md border bg-background px-1 text-sm" value={x.category} onChange={(e) => update(x.id, { category: e.target.value as Cat })}>
                   {(Object.keys(catLabel) as Cat[]).map((c) => <option key={c} value={c}>{catLabel[c]}</option>)}
                 </select>
@@ -77,7 +75,7 @@ export default function QualitiesPage() {
                     <span className="text-muted-foreground">{t("stockFrom")}</span>
                     <select className={`h-9 flex-1 rounded-md border bg-background px-1 ${x.stock_quality_id ? "" : "border-warning"}`} value={x.stock_quality_id ?? ""} onChange={(e) => update(x.id, { stock_quality_id: e.target.value || null })}>
                       <option value="">{t("notTracked")}</option>
-                      {nakasiQ.map((n) => <option key={n.id} value={n.id}>{lang === "ur" ? n.name_ur : n.name_en}</option>)}
+                      {nakasiQ.map((n) => <option key={n.id} value={n.id}>{n.name_en}</option>)}
                     </select>
                   </label>
                 )}

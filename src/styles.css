@@ -5,7 +5,6 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --font-urdu: "Noto Nastaliq Urdu", serif;
   --font-sans: "IBM Plex Sans", system-ui, sans-serif;
   --font-num: "IBM Plex Mono", ui-monospace, monospace;
   --radius-sm: calc(var(--radius) - 4px);
@@ -87,8 +86,7 @@
 @layer base {
   * { border-color: var(--color-border); }
   html { font-family: var(--font-sans); }
-  html[lang="ur"] body { font-family: var(--font-urdu); line-height: 2.1; }
-  body { background-color: var(--color-background); color: var(--color-foreground); }
+  body { background-color: var(--color-background); color: var(--color-foreground); -webkit-tap-highlight-color: transparent; }
 }
 
 /* Numbers stay LTR, monospaced, and readable inside Urdu text */
@@ -102,7 +100,6 @@
 
 @utility register-paper {
   background-color: var(--color-card);
-  background-image: repeating-linear-gradient(to bottom, transparent 0, transparent 39px, var(--color-ledger-line) 39px, var(--color-ledger-line) 40px);
 }
 
 .print-only { display: none; }

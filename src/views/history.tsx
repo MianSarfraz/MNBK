@@ -47,7 +47,7 @@ export default function HistoryPage() {
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <PageHeader title={t("history")} sub={t("historyHelp")}
         actions={<Field label={t("type")} className="w-56"><Select value={table} onChange={(e) => setTable(e.target.value)}>
           <option value="">{t("all")}</option>{TABLES.map((x) => <option key={x} value={x}>{x}</option>)}

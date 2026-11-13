@@ -16,7 +16,7 @@ import { DateInput, Field, methodLabel, MethodSelect, NumInput, OwnerSelect, Sec
 
 export default function InvoicePage() {
   const { id } = useParams<{ id: string }>();
-  const { t, lang } = useT();
+  const { t } = useT();
   const qc = useQueryClient();
   const router = useRouter();
   const owners = useOwners();
@@ -55,7 +55,7 @@ export default function InvoicePage() {
   })();
   const received = receipts.reduce((s, r) => s + (r.direction === "in" ? 1 : -1) * Number(r.amount), 0);
   const balance = Number((ledgers.data ?? []).find((l) => l.party_id === customer.id)?.balance ?? 0);
-  const qName = (qid: string) => { const x = (qualities.data ?? []).find((q) => q.id === qid); return x ? (lang === "ur" ? x.name_ur : x.name_en) : "—"; };
+  const qName = (qid: string) => { const x = (qualities.data ?? []).find((q) => q.id === qid); return x ? x.name_en : "—"; };
   const ownerName = (oid: string) => (owners.data ?? []).find((o) => o.id === oid)?.display_name ?? "—";
   const refresh = () => qc.invalidateQueries();
 
@@ -88,7 +88,7 @@ export default function InvoicePage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-5">
+    <div className="mx-auto max-w-3xl space-y-4">
       <div className="no-print flex flex-wrap gap-2">
         <Link href="/sales" className="inline-flex h-10 items-center rounded-md border bg-card px-4">← {t("sales")}</Link>
         <Button onClick={() => window.print()}>{t("print")} / PDF</Button>
@@ -96,10 +96,10 @@ export default function InvoicePage() {
         {!readOnly && <ConfirmButton variant="destructive" description={t("voidInvoiceHelp")} onConfirm={voidInvoice}>{t("voidInvoice")}</ConfirmButton>}
       </div>
 
-      <article className="register-paper rounded-xl border-2 border-primary/40 p-6">
+      <article className="register-paper rounded-xl border p-4">
         <header className="flex flex-wrap items-start justify-between gap-3 border-b-2 border-primary pb-3">
           <div>
-            <div className="text-3xl font-bold text-primary">{t("appName")}</div>
+            <div className="text-2xl font-bold text-primary">{t("appName")}</div>
             <div className="text-lg">{t("invoice")}</div>
           </div>
           <div className="text-end">
@@ -190,7 +190,7 @@ function EditNum({ value, onSave, allowZero }: { value: number; onSave: (v: numb
 }
 
 function AddLine({ saleId, onDone }: { saleId: string; onDone: () => void }) {
-  const { t, lang } = useT();
+  const { t } = useT();
   const qualities = useQualities();
   const [l, setL] = useState({ quality: "", qty: "", rate: "" });
   async function add() {
@@ -205,7 +205,7 @@ function AddLine({ saleId, onDone }: { saleId: string; onDone: () => void }) {
     <div className="no-print mt-2 flex flex-wrap items-end gap-2">
       <Select className="w-48" value={l.quality} onChange={(e) => setL({ ...l, quality: e.target.value })}>
         <option value="">{t("quality")}</option>
-        {(qualities.data ?? []).filter((q) => q.kind === "sale" && q.is_active).map((q) => <option key={q.id} value={q.id}>{lang === "ur" ? q.name_ur : q.name_en}</option>)}
+        {(qualities.data ?? []).filter((q) => q.kind === "sale" && q.is_active).map((q) => <option key={q.id} value={q.id}>{q.name_en}</option>)}
       </Select>
       <NumInput className="w-32" value={l.qty} onChange={(v) => setL({ ...l, qty: v })} placeholder={t("bricks")} />
       <NumInput className="w-28" value={l.rate} onChange={(v) => setL({ ...l, rate: v })} placeholder={t("rate")} />

@@ -13,35 +13,34 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { KharchaCell } from "@/components/KharchaCell";
-import { clampDate, DateInput, Empty, Field, NumInput, PageHeader, Section, Select, SeasonWeekPicker, Stat, useSeasonWeek } from "@/components/kit";
+import { clampDate, DateInput, Empty, Field, NumInput, PageHeader, Section, Select, Stat, WeekPicker, useWeekNav } from "@/components/kit";
 
 type Stage = "rehra" | "nakasi";
 type Entry = Tables<"kiln_entries">;
 
 export function KilnWeek({ stage }: { stage: Stage }) {
-  const { t, lang } = useT();
+  const { t } = useT();
   const qc = useQueryClient();
-  const sw = useSeasonWeek();
-  const { week, seasonId, readOnly } = sw;
+  const nav = useWeekNav();
+  const { start, end, readOnly } = nav;
   const workers = useParties(stage);
   const patheers = useParties("patheer");
   const qualities = useQualities();
   const ratesQ = useRates();
   const entriesQ = useQuery({
-    queryKey: ["kiln", stage, week?.id],
-    enabled: !!week,
+    queryKey: ["kiln", stage, start],
     queryFn: async () => {
-      const { data, error } = await supabase.from("kiln_entries").select("*").eq("stage", stage).eq("week_id", week!.id).is("deleted_at", null).order("created_at");
+      const { data, error } = await supabase.from("kiln_entries").select("*").eq("stage", stage).gte("entry_date", start).lte("entry_date", end).is("deleted_at", null).order("created_at");
       if (error) throw error;
       return data ?? [];
     },
   });
   // Patheer confirmed this week, for rehra reconciliation.
   const madeQ = useQuery({
-    queryKey: ["entries", week?.id, "made"],
-    enabled: !!week && stage === "rehra",
+    queryKey: ["entries", start, "made"],
+    enabled: stage === "rehra",
     queryFn: async () => {
-      const { data, error } = await supabase.from("production_entries").select("party_id, confirmed_count").eq("week_id", week!.id).is("deleted_at", null);
+      const { data, error } = await supabase.from("production_entries").select("party_id, confirmed_count").gte("entry_date", start).lte("entry_date", end).is("deleted_at", null);
       if (error) throw error;
       return data ?? [];
     },
@@ -49,7 +48,7 @@ export function KilnWeek({ stage }: { stage: Stage }) {
 
   const qName = (id: string | null) => {
     const q = (qualities.data ?? []).find((x) => x.id === id);
-    return q ? (lang === "ur" ? q.name_ur : q.name_en) : "—";
+    return q ? q.name_en : "—";
   };
   const pName = (id: string | null) => [...(workers.data ?? []), ...(patheers.data ?? [])].find((p) => p.id === id)?.name ?? "—";
   const cols = (qualities.data ?? []).filter((q) => q.kind === "nakasi" && q.is_active);
@@ -57,16 +56,17 @@ export function KilnWeek({ stage }: { stage: Stage }) {
   const rows = (workers.data ?? []).filter((w) => w.is_active || entries.some((e) => e.party_id === w.id));
   const rates = useMemo(() => (ratesQ.data ?? []).map((r) => ({ ...r, rate_per_1000: Number(r.rate_per_1000) })), [ratesQ.data]);
   const ratesFor = (pid: string) => rates.filter((r) => r.party_id === pid) as unknown as Rate[];
-  const defaultDate = week ? clampDate(today(), week.start_date, week.end_date) : today();
+  const [cellDate, setCellDate] = useState("");
+  const defaultDate = cellDate && cellDate >= start && cellDate <= end ? cellDate : clampDate(today(), start, end);
 
   const refresh = () => {
-    qc.invalidateQueries({ queryKey: ["kiln", stage, week?.id] });
+    qc.invalidateQueries({ queryKey: ["kiln", stage] });
     qc.invalidateQueries({ queryKey: ["ledgers"] });
   };
 
   async function insertEntry(p: { party_id: string; count: number; quality_id: string | null; source_party_id?: string | null; entry_date: string; notes?: string | null }) {
-    if (!week || !seasonId) return false;
-    const { error } = await supabase.from("kiln_entries").insert({ stage, season_id: seasonId, week_id: week.id, created_by: await myId(), ...p });
+    // Week and season are filled in by the database from the date.
+    const { error } = await supabase.from("kiln_entries").insert({ stage, created_by: await myId(), ...p });
     if (error) { toast.error(error.message); return false; }
     refresh();
     return true;
@@ -85,11 +85,11 @@ export function KilnWeek({ stage }: { stage: Stage }) {
     else if (cur && v > 0 && v !== Number(cur.count)) await updateEntry(cur.id, { count: v });
     else if (cur && v === 0) await updateEntry(cur.id, { deleted_at: new Date().toISOString() });
   }
-  async function giveKharcha(pid: string, amount: number, handler: string) {
+  async function giveKharcha(pid: string, amount: number, handler: string, date: string) {
     if (!handler) { toast.error(t("paidBy")); return false; }
     try {
       const { error } = await supabase.from("transactions").insert({
-        entry_date: today(), season_id: seasonId ?? null, week_id: week?.id ?? null, party_id: pid, kind: "kharcha", direction: "out", amount,
+        entry_date: date, party_id: pid, kind: "kharcha", direction: "out", amount,
         method: "cash", handler_user_id: handler, category: `${stage}_kharcha`, created_by: await myId(),
       });
       if (error) throw error;
@@ -112,13 +112,12 @@ export function KilnWeek({ stage }: { stage: Stage }) {
   const weekEarn = totals.reduce((s, r) => s + r.earn, 0);
   const made = (madeQ.data ?? []).reduce((s, e) => s + Number(e.confirmed_count ?? 0), 0);
 
-  if (sw.seasons.data && !sw.seasons.data.length) return <Empty>{t("noSeason")}</Empty>;
 
   return (
     <div className="space-y-4">
       <PageHeader title={t(stage === "rehra" ? "rehraKhatta" : "nakasiKhatta")} sub={t(stage === "rehra" ? "rehraHelp" : "nakasiHelp")}
         actions={<Link href={`/people/${stage}`} className="inline-flex h-10 items-center rounded-md border bg-card px-4">{t("workersAndLedgers")}</Link>} />
-      <SeasonWeekPicker sw={sw} />
+      <WeekPicker nav={nav} />
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <Stat label={t(stage === "rehra" ? "loadedThisWeek" : "bakedThisWeek")} value={weekBricks} />
@@ -127,12 +126,18 @@ export function KilnWeek({ stage }: { stage: Stage }) {
         {stage === "rehra" && <Stat label={t("madeMinusLoaded")} value={made - weekBricks} tone={made - weekBricks < 0 ? "bad" : undefined} />}
       </div>
 
+      {stage === "nakasi" && (
+        <label className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+          {t("dateForNewEntries")}
+          <input type="date" className="h-9 rounded-md border bg-card px-2 text-foreground" min={start} max={end} value={defaultDate} onChange={(e) => setCellDate(e.target.value)} />
+        </label>
+      )}
       {stage === "nakasi" ? (
-        <div className="register-paper overflow-x-auto rounded-xl border-2 border-primary/30">
+        <div className="overflow-x-auto rounded-xl border bg-card">
           <table className="w-full border-collapse text-sm">
             <thead className="bg-secondary"><tr>
               <th className="sticky start-0 z-10 bg-secondary p-2 text-start text-base">{t("nakasi")}</th>
-              {cols.map((q) => <th key={q.id} className="p-2 text-base">{lang === "ur" ? q.name_ur : q.name_en}</th>)}
+              {cols.map((q) => <th key={q.id} className="p-2 text-base">{q.name_en}</th>)}
               <th className="p-2 text-base">{t("total")}</th><th className="p-2 text-base">{t("kharcha")}</th>
             </tr></thead>
             <tbody>
@@ -144,7 +149,7 @@ export function KilnWeek({ stage }: { stage: Stage }) {
                     const sum = cell.reduce((s, e) => s + Number(e.count), 0);
                     return (
                       <td key={q.id} className="p-1">
-                        <Input key={`${w.id}${q.id}${sum}`} disabled={readOnly || cell.length > 1} className="num h-11 w-24 text-center text-base" inputMode="numeric" defaultValue={sum || ""}
+                        <Input key={`${w.id}${q.id}${sum}`} disabled={readOnly || cell.length > 1} className="num h-9 w-20 px-1 text-center" inputMode="numeric" defaultValue={sum || ""}
                           title={cell.length > 1 ? t("multipleEntries") : undefined}
                           onBlur={(ev) => setCell(w.id, q.id, ev.target.value, cell)} />
                       </td>
@@ -155,7 +160,7 @@ export function KilnWeek({ stage }: { stage: Stage }) {
                     <div className="num font-bold text-primary">Rs {fmt(earn)}</div>
                     {!hasRate && <div className="text-xs text-destructive">{t("missingRate")}</div>}
                   </td>
-                  <td className="p-2 text-center"><KharchaCell amount={kh} disabled={readOnly || kh <= 0} onGive={(a, h) => giveKharcha(w.id, a, h)} /></td>
+                  <td className="p-2 text-center"><KharchaCell amount={kh} disabled={readOnly || kh <= 0} onGive={(a, h, d) => giveKharcha(w.id, a, h, d)} /></td>
                 </tr>
               ))}
               <tr className="border-t-2 border-primary bg-secondary/50 font-bold">
@@ -170,9 +175,10 @@ export function KilnWeek({ stage }: { stage: Stage }) {
       ) : (
         <>
           <RehraForm workers={rows.filter((w) => w.is_active)} patheers={(patheers.data ?? []).filter((p) => p.is_active)} qualities={(qualities.data ?? []).filter((q) => q.is_active)}
-            lang={lang} week={week} defaultDate={defaultDate} disabled={readOnly} onAdd={insertEntry} />
+            defaultDate={defaultDate} disabled={readOnly}
+            onAdd={async (p) => { const ok = await insertEntry(p); if (ok && (p.entry_date < start || p.entry_date > end)) { nav.go(p.entry_date); toast.success(`${t("saved")} — ${fmtDate(p.entry_date)}`); } return ok; }} />
           <div className="overflow-x-auto rounded-xl border bg-card">
-            <table className="w-full text-base">
+            <table className="w-full text-sm">
               <thead className="bg-secondary"><tr>
                 <th className="p-2 text-start">{t("rehra")}</th><th className="p-2">{t("bricks")}</th><th className="p-2">{t("earnings")}</th><th className="p-2">{t("kharcha")}</th>
               </tr></thead>
@@ -182,7 +188,7 @@ export function KilnWeek({ stage }: { stage: Stage }) {
                     <td className="p-2 font-bold"><Link href={`/party/${w.id}`} className="hover:underline">{w.name}</Link></td>
                     <td className="num p-2 text-center">{fmt(bricks)}</td>
                     <td className="num p-2 text-center">Rs {fmt(earn)}{!hasRate && <div className="text-xs text-destructive">{t("missingRate")}</div>}</td>
-                    <td className="p-2 text-center"><KharchaCell amount={kh} disabled={readOnly || kh <= 0} onGive={(a, h) => giveKharcha(w.id, a, h)} /></td>
+                    <td className="p-2 text-center"><KharchaCell amount={kh} disabled={readOnly || kh <= 0} onGive={(a, h, d) => giveKharcha(w.id, a, h, d)} /></td>
                   </tr>
                 ))}
               </tbody>
@@ -195,7 +201,7 @@ export function KilnWeek({ stage }: { stage: Stage }) {
       <Section title={t("entries")}>
         {!entries.length ? <Empty /> : (
           <div className="overflow-x-auto">
-            <table className="w-full text-base">
+            <table className="w-full text-sm">
               <thead><tr className="text-muted-foreground">
                 <th className="p-2 text-start">{t("date")}</th><th className="p-2 text-start">{t("name")}</th><th className="p-2 text-start">{t("quality")}</th>
                 {stage === "rehra" && <th className="p-2 text-start">{t("sourcePatheer")}</th>}
@@ -225,9 +231,9 @@ export function KilnWeek({ stage }: { stage: Stage }) {
   );
 }
 
-function RehraForm({ workers, patheers, qualities, lang, week, defaultDate, disabled, onAdd }: {
-  workers: Tables<"parties">[]; patheers: Tables<"parties">[]; qualities: Tables<"qualities">[]; lang: string;
-  week: Tables<"weeks"> | undefined; defaultDate: string; disabled: boolean;
+function RehraForm({ workers, patheers, qualities, defaultDate, disabled, onAdd }: {
+  workers: Tables<"parties">[]; patheers: Tables<"parties">[]; qualities: Tables<"qualities">[];
+  defaultDate: string; disabled: boolean;
   onAdd: (p: { party_id: string; count: number; quality_id: string | null; source_party_id: string | null; entry_date: string; notes: string | null }) => Promise<boolean>;
 }) {
   const { t } = useT();
@@ -248,14 +254,14 @@ function RehraForm({ workers, patheers, qualities, lang, week, defaultDate, disa
         <option value="">—</option>{workers.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
       </Select></Field>
       <Field label={t("bricksLoaded")}><NumInput value={f.count} onChange={(v) => setF({ ...f, count: v })} disabled={disabled} /></Field>
-      <Field label={t("date")}><DateInput value={date} min={week?.start_date} max={week?.end_date} onChange={(v) => setF({ ...f, date: v })} /></Field>
+      <Field label={t("date")}><DateInput value={date} onChange={(v) => setF({ ...f, date: v })} /></Field>
       <Field label={`${t("quality")} (${t("optional")})`}><Select value={f.quality} onChange={(e) => setF({ ...f, quality: e.target.value })} disabled={disabled}>
-        <option value="">—</option>{qualities.map((q) => <option key={q.id} value={q.id}>{lang === "ur" ? q.name_ur : q.name_en}</option>)}
+        <option value="">—</option>{qualities.map((q) => <option key={q.id} value={q.id}>{q.name_en}</option>)}
       </Select></Field>
       <Field label={`${t("sourcePatheer")} (${t("optional")})`}><Select value={f.source} onChange={(e) => setF({ ...f, source: e.target.value })} disabled={disabled}>
         <option value="">—</option>{patheers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
       </Select></Field>
-      <Field label={t("note")} className="md:col-span-5"><Input className="h-12" value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} disabled={disabled} /></Field>
+      <Field label={t("note")} className="md:col-span-5"><Input className="h-10" value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} disabled={disabled} /></Field>
       <div className="flex items-end"><Button size="lg" className="w-full" disabled={disabled}>{t("add")}</Button></div>
     </form>
   );

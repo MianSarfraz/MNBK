@@ -73,7 +73,7 @@ export default function OwnersPage() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <PageHeader title={t("ownersTitle")} sub={t("ownersHelp")}
         actions={<Field label={t("period")} className="w-56"><Select value={seasonId} onChange={(e) => setSeasonId(e.target.value)}>
           <option value="">{t("allTime")}</option>{(seasons.data ?? []).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
@@ -96,7 +96,7 @@ export default function OwnersPage() {
       </div>
 
       {settle && (
-        <section className="register-paper rounded-xl border-2 border-primary/30 p-5">
+        <section className="register-paper rounded-xl border p-4">
           <h2 className="text-xl font-bold text-primary">{t("betweenBrothers")}</h2>
           {settle.from == null ? <p className="mt-2 text-2xl font-bold">{t("settled")}</p> : (
             <p className="mt-2 text-2xl font-bold">
@@ -112,12 +112,12 @@ export default function OwnersPage() {
           <Field label={t("owner")}><OwnerSelect value={cc.owner} onChange={(v) => setCc((c) => ({ ...c, owner: v }))} /></Field>
           <Field label={t("date")}><DateInput value={cc.date} onChange={(v) => setCc({ ...cc, date: v })} /></Field>
           <Field label={t("countedCash")}><NumInput value={cc.counted} onChange={(v) => setCc({ ...cc, counted: v })} /></Field>
-          <Field label={t("note")}><Input className="h-12" value={cc.note} onChange={(e) => setCc({ ...cc, note: e.target.value })} /></Field>
+          <Field label={t("note")}><Input className="h-10" value={cc.note} onChange={(e) => setCc({ ...cc, note: e.target.value })} /></Field>
           <div className="flex items-end"><ConfirmButton size="lg" onConfirm={saveCount} disabled={!cc.counted} description={t("cashCountHelp")}>{t("save")}</ConfirmButton></div>
         </div>
         {!(countsQ.data ?? []).length ? <Empty /> : (
           <div className="overflow-x-auto">
-            <table className="w-full text-base">
+            <table className="w-full text-sm">
               <thead><tr className="text-muted-foreground">
                 <th className="p-2 text-start">{t("date")}</th><th className="p-2 text-start">{t("owner")}</th><th className="p-2">{t("expectedCash")}</th>
                 <th className="p-2">{t("countedCash")}</th><th className="p-2">{t("diff")}</th><th className="p-2 text-start">{t("note")}</th><th />
@@ -148,7 +148,7 @@ export default function OwnersPage() {
         </Select>}>
         {!ownerTx.length ? <Empty /> : (
           <div className="overflow-x-auto">
-            <table className="w-full text-base">
+            <table className="w-full text-sm">
               <thead><tr className="text-muted-foreground">
                 <th className="p-2 text-start">{t("date")}</th><th className="p-2 text-start">{t("type")}</th><th className="p-2 text-start">{t("detail")}</th>
                 <th className="p-2">{t("in")}</th><th className="p-2">{t("out")}</th>

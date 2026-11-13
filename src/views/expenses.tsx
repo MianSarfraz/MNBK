@@ -32,7 +32,7 @@ const FILTERS: { key: string; label: Key; match: (x: Txn) => boolean }[] = [
 ];
 
 export default function ExpensesPage() {
-  const { t, lang } = useT();
+  const { t } = useT();
   const qc = useQueryClient();
   const owners = useOwners();
   const cats = useExpenseCategories();
@@ -47,7 +47,7 @@ export default function ExpensesPage() {
 
   const ownerName = (id: string | null | undefined) => (owners.data ?? []).find((o) => o.id === id)?.display_name ?? "—";
   const party = (id: string | null) => (parties.data ?? []).find((p) => p.id === id);
-  const catName = (id: string | null) => { const c = (cats.data ?? []).find((c) => c.id === id); return c ? (lang === "ur" ? c.name_ur : c.name_en) : ""; };
+  const catName = (id: string | null) => { const c = (cats.data ?? []).find((c) => c.id === id); return c ? c.name_en : ""; };
 
   const rows = useMemo(() => {
     const f = FILTERS.find((x) => x.key === filter.kind) ?? FILTERS[0]!;
@@ -84,7 +84,7 @@ export default function ExpensesPage() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <PrintHeader title={t("expenseKhatta")} sub={`${fmtDate(range.from)} → ${fmtDate(range.to)}`} />
       <PageHeader title={t("expenseKhatta")} sub={t("expenseKhattaHelp")}
         actions={<>
@@ -103,9 +103,9 @@ export default function ExpensesPage() {
         </Select></Field>
         <Field label={t("owner")} className="w-44"><OwnerSelect value={filter.owner} onChange={(v) => setFilter((f) => ({ ...f, owner: v }))} placeholder={t("all")} /></Field>
         <Field label={t("category")} className="w-44"><Select value={filter.category} onChange={(e) => setFilter({ ...filter, category: e.target.value })}>
-          <option value="">{t("all")}</option>{(cats.data ?? []).map((c) => <option key={c.id} value={c.id}>{lang === "ur" ? c.name_ur : c.name_en}</option>)}
+          <option value="">{t("all")}</option>{(cats.data ?? []).map((c) => <option key={c.id} value={c.id}>{c.name_en}</option>)}
         </Select></Field>
-        <Field label={t("search")} className="min-w-40 flex-1"><Input className="h-12" value={filter.search} onChange={(e) => setFilter({ ...filter, search: e.target.value })} /></Field>
+        <Field label={t("search")} className="min-w-40 flex-1"><Input className="h-10" value={filter.search} onChange={(e) => setFilter({ ...filter, search: e.target.value })} /></Field>
       </div>
 
       <div className="grid grid-cols-3 gap-3">
@@ -115,7 +115,7 @@ export default function ExpensesPage() {
       </div>
 
       <div className="overflow-x-auto rounded-xl border bg-card">
-        <table className="w-full text-base">
+        <table className="w-full text-sm">
           <thead className="bg-secondary"><tr>
             <th className="p-2 text-start">{t("date")}</th><th className="p-2 text-start">{t("type")}</th><th className="p-2 text-start">{t("detail")}</th>
             <th className="p-2 text-start">{t("owner")}</th><th className="p-2">{t("in")}</th><th className="p-2">{t("out")}</th><th className="no-print" />
@@ -153,7 +153,7 @@ export default function ExpensesPage() {
 }
 
 function EntryForm() {
-  const { t, lang } = useT();
+  const { t } = useT();
   const qc = useQueryClient();
   const cats = useExpenseCategories();
   const vendors = useParties("vendor");
@@ -200,7 +200,7 @@ function EntryForm() {
         <Field label={t(f.type === "income" ? "receivedBy" : f.type === "transfer" ? "fromOwner" : "paidBy")}><OwnerSelect value={f.handler} onChange={(v) => setF((x) => ({ ...x, handler: v }))} /></Field>
         {f.type === "expense" && (
           <Field label={t("category")}><Select value={f.category} onChange={(e) => setF({ ...f, category: e.target.value })}>
-            <option value="">—</option>{(cats.data ?? []).filter((c) => c.is_active).map((c) => <option key={c.id} value={c.id}>{lang === "ur" ? c.name_ur : c.name_en}</option>)}
+            <option value="">—</option>{(cats.data ?? []).filter((c) => c.is_active).map((c) => <option key={c.id} value={c.id}>{c.name_en}</option>)}
           </Select></Field>
         )}
         {f.type !== "transfer" && (
@@ -210,8 +210,8 @@ function EntryForm() {
         )}
         {f.type === "transfer" && <Field label={t("toOwner")}><OwnerSelect value={f.to} onChange={(v) => setF((x) => ({ ...x, to: v }))} /></Field>}
         <Field label={t("method")}><MethodSelect value={f.method} onChange={(v) => setF({ ...f, method: v })} /></Field>
-        <Field label={t("note")} className="md:col-span-2"><Input className="h-12" value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} /></Field>
-        <Field label={t("receiptPhoto")}><Input className="h-12" type="file" accept="image/*,application/pdf" capture="environment" onChange={(e) => setFile(e.target.files?.[0] ?? null)} /></Field>
+        <Field label={t("note")} className="md:col-span-2"><Input className="h-10" value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} /></Field>
+        <Field label={t("receiptPhoto")}><Input className="h-10" type="file" accept="image/*,application/pdf" capture="environment" onChange={(e) => setFile(e.target.files?.[0] ?? null)} /></Field>
         <div className="flex items-end">
           <ConfirmButton size="lg" onConfirm={save} disabled={!f.amount || busy} description={`Rs ${fmt(parseWhole(f.amount) ?? 0)} — ${t("balanceChange")}`}>{t("save")}</ConfirmButton>
         </div>
@@ -222,15 +222,14 @@ function EntryForm() {
 }
 
 function CategoryManager({ cats }: { cats: Tables<"expense_categories">[] }) {
-  const { t, lang } = useT();
+  const { t } = useT();
   const qc = useQueryClient();
   const [en, setEn] = useState("");
-  const [ur, setUr] = useState("");
   async function add(e: React.FormEvent) {
     e.preventDefault();
-    const { error } = await supabase.from("expense_categories").insert({ name_en: en.trim(), name_ur: ur.trim(), sort_order: 100, created_by: await myId() });
+    const { error } = await supabase.from("expense_categories").insert({ name_en: en.trim(), name_ur: en.trim(), sort_order: 100, created_by: await myId() });
     if (error) return void toast.error(error.message);
-    setEn(""); setUr("");
+    setEn("");
     qc.invalidateQueries({ queryKey: ["expense-categories"] });
   }
   async function update(id: string, patch: Partial<Tables<"expense_categories">>) {
@@ -241,15 +240,14 @@ function CategoryManager({ cats }: { cats: Tables<"expense_categories">[] }) {
   return (
     <Section title={t("categories")} className="no-print">
       <form onSubmit={add} className="mb-3 flex flex-wrap items-end gap-2">
-        <Input className="h-11 w-40" placeholder="English" value={en} onChange={(e) => setEn(e.target.value)} required />
-        <Input className="h-11 w-40" placeholder="اردو" value={ur} onChange={(e) => setUr(e.target.value)} required />
+        <Input className="h-11 w-40" placeholder={t("name")} value={en} onChange={(e) => setEn(e.target.value)} required />
         <Button>{t("add")}</Button>
       </form>
       <div className="grid gap-2 md:grid-cols-3">
         {cats.map((c) => (
           <div key={c.id} className="flex items-center gap-2 rounded-lg border p-2">
-            <Input className="h-10" defaultValue={lang === "ur" ? c.name_ur : c.name_en}
-              onBlur={(e) => { const v = e.target.value.trim(); const cur = lang === "ur" ? c.name_ur : c.name_en; if (v && v !== cur) update(c.id, lang === "ur" ? { name_ur: v } : { name_en: v }); }} />
+            <Input className="h-10" defaultValue={c.name_en}
+              onBlur={(e) => { const v = e.target.value.trim(); const cur = c.name_en; if (v && v !== cur) update(c.id, { name_en: v, name_ur: v }); }} />
             <Switch checked={c.is_active} onCheckedChange={(v) => update(c.id, { is_active: v })} />
           </div>
         ))}

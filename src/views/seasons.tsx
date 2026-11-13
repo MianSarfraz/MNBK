@@ -46,13 +46,15 @@ export default function SeasonsPage() {
   }
 
   return (
-    <div className="grid gap-6 md:grid-cols-2">
-      <form onSubmit={create} className="space-y-4 rounded-xl border bg-card p-5">
+    <div className="space-y-4">
+    <p className="rounded-lg border bg-card p-3 text-sm text-muted-foreground">{t("seasonsAutoHelp")}</p>
+    <div className="grid gap-4 md:grid-cols-2">
+      <form onSubmit={create} className="space-y-4 rounded-xl border bg-card p-4">
         <h2 className="text-xl font-bold">{t("add")} {t("season")}</h2>
-        <div><Label>{t("name")}</Label><Input className="h-12 text-lg" value={name} onChange={(e) => setName(e.target.value)} required placeholder="2026-27" /></div>
+        <div><Label>{t("name")}</Label><Input className="h-10 text-lg" value={name} onChange={(e) => setName(e.target.value)} required placeholder="2026-27" /></div>
         <div className="grid grid-cols-2 gap-3">
-          <div><Label>{t("start")}</Label><Input className="h-12" type="date" value={start} onChange={(e) => setStart(e.target.value)} required /></div>
-          <div><Label>{t("end")}</Label><Input className="h-12" type="date" value={end} onChange={(e) => setEnd(e.target.value)} required /></div>
+          <div><Label>{t("start")}</Label><Input className="h-10" type="date" value={start} onChange={(e) => setStart(e.target.value)} required /></div>
+          <div><Label>{t("end")}</Label><Input className="h-10" type="date" value={end} onChange={(e) => setEnd(e.target.value)} required /></div>
         </div>
         <Button size="lg" className="w-full text-lg">{t("generateWeeks")}</Button>
       </form>
@@ -79,6 +81,7 @@ export default function SeasonsPage() {
           </div>
         ))}
       </div>
+    </div>
     </div>
   );
 }

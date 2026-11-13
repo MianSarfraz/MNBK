@@ -57,7 +57,7 @@ export default function Dashboard() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <h1 className="text-2xl font-bold">
         {t("thisWeek")} <span className="num text-lg text-muted-foreground">{fmtDate(ws)} → {fmtDate(we)}</span>
       </h1>
@@ -84,7 +84,7 @@ export default function Dashboard() {
 
       <div className="flex flex-wrap gap-3">
         {actions.map((a) => (
-          <Link key={a.to} href={a.to} className={`rounded-lg px-6 py-4 text-xl ${a.primary ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"}`}>{t(a.k)}</Link>
+          <Link key={a.to} href={a.to} className={`rounded-lg px-4 py-2.5 text-sm font-medium ${a.primary ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"}`}>{t(a.k)}</Link>
         ))}
         <Link href="/reports" className="rounded-lg border bg-card px-6 py-4 text-xl">{t("reports")}</Link>
       </div>

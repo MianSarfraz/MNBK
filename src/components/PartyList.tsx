@@ -69,7 +69,7 @@ export function PartyList({ kind }: { kind: PartyKind }) {
   const typeLabel = (x: string | null) => (x === "tile9t" ? t("tile9t") : x === "special" ? t("specialBrick") : t("simple"));
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <PageHeader title={t(kindKey(kind))} sub={`${fmt(all.filter((p) => p.is_active).length)} ${t("active")}`} />
       {kind !== "vendor" && (
         <div className="grid grid-cols-2 gap-3">
@@ -77,13 +77,13 @@ export function PartyList({ kind }: { kind: PartyKind }) {
           <Stat label={t(kind === "customer" ? "customerOwes" : "heOwes")} value={theyOwe} money tone="good" />
         </div>
       )}
-      <div className="grid gap-6 lg:grid-cols-[380px_1fr]">
-        <form onSubmit={add} className="space-y-3 rounded-xl border bg-card p-5">
+      <div className="grid gap-4 lg:grid-cols-[380px_1fr]">
+        <form onSubmit={add} className="space-y-3 rounded-xl border bg-card p-4">
           <h2 className="text-xl font-bold">{t("addNew")}</h2>
-          <Field label={t("name")}><Input className="h-12 text-lg" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} required /></Field>
-          <Field label={t("phone")}><Input className="num h-12" inputMode="tel" value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} /></Field>
+          <Field label={t("name")}><Input className="h-10 text-lg" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} required /></Field>
+          <Field label={t("phone")}><Input className="num h-10" inputMode="tel" value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} /></Field>
           {(kind === "customer" || kind === "vendor" || kind === "employee") && (
-            <Field label={t("address")}><Input className="h-12" value={f.address} onChange={(e) => setF({ ...f, address: e.target.value })} /></Field>
+            <Field label={t("address")}><Input className="h-10" value={f.address} onChange={(e) => setF({ ...f, address: e.target.value })} /></Field>
           )}
           {kind === "patheer" && (
             <Field label={t("type")}><Select value={f.type} onChange={(e) => setF({ ...f, type: e.target.value })}>
@@ -103,7 +103,7 @@ export function PartyList({ kind }: { kind: PartyKind }) {
         </form>
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-3">
-            <Input className="h-12 flex-1 text-lg" placeholder={t("search")} value={search} onChange={(e) => setSearch(e.target.value)} />
+            <Input className="h-10 flex-1 text-lg" placeholder={t("search")} value={search} onChange={(e) => setSearch(e.target.value)} />
             <label className="flex items-center gap-2 text-sm"><Switch checked={showInactive} onCheckedChange={setShowInactive} />{t("showInactive")}</label>
           </div>
           {!shown.length && <Empty />}

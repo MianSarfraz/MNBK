@@ -43,6 +43,13 @@
       "when": 1794700000000,
       "tag": "0005_phase2_4_khattas",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1794790000000,
+      "tag": "0006_auto_weeks",
+      "breakpoints": true
     }
   ]
 }

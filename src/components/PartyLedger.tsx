@@ -6,9 +6,9 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
-import { fmt, fmtDate, useT, type Key } from "@/lib/i18n";
+import { fmt, fmtDate, fmtMonth, useT, type Key } from "@/lib/i18n";
 import {
-  addDays, amountFor, monthEnd, monthStart, parseWhole, rateOn, statement, txnEffect, weekStart,
+  addDays, amountFor, monthEnd, parseWhole, rateOn, statement, txnEffect, weekStart,
   type Direction, type LedgerItem, type Rate, type TxnKind,
 } from "@/lib/kiln-math";
 import { errMsg, myId, openReceipt, today, uploadReceipt, useSeasons, WORKER_KINDS, type PartyKind } from "@/lib/data";
@@ -57,7 +57,7 @@ function txnLabel(kind: PartyKind, x: Pick<Txn, "kind" | "direction">): Key {
 type Period = { mode: "all" | "season" | "month" | "week" | "custom"; seasonId?: string | undefined; month?: string | undefined; week?: string | undefined; from?: string | undefined; to?: string | undefined };
 
 export function PartyLedger({ id, initialFrom, initialTo }: { id: string; initialFrom?: string | undefined; initialTo?: string | undefined }) {
-  const { t, lang } = useT();
+  const { t } = useT();
   const qc = useQueryClient();
   const seasons = useSeasons();
   const q = useQuery({
@@ -120,7 +120,7 @@ export function PartyLedger({ id, initialFrom, initialTo }: { id: string; initia
       const ws = weekStart(e.entry_date);
       items.push({ date: e.entry_date, amount: r == null ? 0 : amountFor(Number(e.count), r), label: wkLabel(ws), group: `w|${ws}`, tag: "work", bricks: Number(e.count) });
     }
-    for (const s of d.salary) items.push({ date: s.entry_date, amount: Number(s.amount), label: `${t("salaryFor")} ${digitsMonth(s.entry_date, lang)}`, tag: "work", ref: `sm:${s.id}`, note: s.note });
+    for (const s of d.salary) items.push({ date: s.entry_date, amount: Number(s.amount), label: `${t("salaryFor")} ${fmtMonth(s.entry_date)}`, tag: "work", ref: `sm:${s.id}`, note: s.note });
     for (const s of d.sales) items.push({ date: s.entry_date!, amount: -Number(s.total), label: `${t("invoice")} #${s.invoice_no} — ${fmt(Number(s.bricks))} ${t("bricks")}`, tag: "invoice", ref: `sale:${s.sale_id}` });
     for (const x of d.txns) {
       const eff = txnEffect(x.kind as TxnKind, x.direction, Number(x.amount));
@@ -134,7 +134,7 @@ export function PartyLedger({ id, initialFrom, initialTo }: { id: string; initia
     const pending = st.rows.reduce((s, r) => s + (r.pending ?? 0), 0);
     const txById = new Map(d.txns.map((x) => [x.id, x]));
     return { st, sum, bricks, pending, unrated, txById, rates: d.rates };
-  }, [q.data, range, t, lang]);
+  }, [q.data, range, t]);
 
   const [form, setForm] = useState({ action: "", amount: "", date: today(), handler: "", method: "cash" as Method, note: "" });
   const [file, setFile] = useState<File | null>(null);
@@ -192,12 +192,12 @@ export function PartyLedger({ id, initialFrom, initialTo }: { id: string; initia
   const periodText = range.from || range.to ? `${fmtDate(range.from)} → ${fmtDate(range.to)}` : t("allTime");
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <PrintHeader title={`${t(kindKey(kind))} ${t("ledger")} — ${party.name}`} sub={periodText} />
       <div className="no-print flex flex-wrap items-start justify-between gap-3">
         <div>
           <Link href={`/people/${kind}`} className="text-sm text-primary underline">← {t(kindKey(kind))}</Link>
-          <h1 className="text-3xl font-bold">{party.name}</h1>
+          <h1 className="text-2xl font-bold">{party.name}</h1>
           <div className="text-muted-foreground"><span className="num">{party.phone}</span> {party.address}</div>
           {!party.is_active && <span className="rounded bg-muted px-2 text-sm">{t("inactive")}</span>}
         </div>
@@ -223,17 +223,17 @@ export function PartyLedger({ id, initialFrom, initialTo }: { id: string; initia
             </Select>
           </Field>
         )}
-        {period.mode === "month" && <Field label={t("month")}><Input className="h-12" type="month" value={period.month ?? ""} onChange={(e) => setPeriod({ ...period, month: e.target.value })} /></Field>}
-        {period.mode === "week" && <Field label={t("anyDayOfWeek")}><Input className="h-12" type="date" value={period.week ?? ""} onChange={(e) => setPeriod({ ...period, week: e.target.value })} /></Field>}
+        {period.mode === "month" && <Field label={t("month")}><Input className="h-10" type="month" value={period.month ?? ""} onChange={(e) => setPeriod({ ...period, month: e.target.value })} /></Field>}
+        {period.mode === "week" && <Field label={t("anyDayOfWeek")}><Input className="h-10" type="date" value={period.week ?? ""} onChange={(e) => setPeriod({ ...period, week: e.target.value })} /></Field>}
         {period.mode === "custom" && (<>
-          <Field label={t("from")}><Input className="h-12" type="date" value={period.from ?? ""} onChange={(e) => setPeriod({ ...period, from: e.target.value })} /></Field>
-          <Field label={t("to")}><Input className="h-12" type="date" value={period.to ?? ""} onChange={(e) => setPeriod({ ...period, to: e.target.value })} /></Field>
+          <Field label={t("from")}><Input className="h-10" type="date" value={period.from ?? ""} onChange={(e) => setPeriod({ ...period, from: e.target.value })} /></Field>
+          <Field label={t("to")}><Input className="h-10" type="date" value={period.to ?? ""} onChange={(e) => setPeriod({ ...period, to: e.target.value })} /></Field>
         </>)}
         <div className="num pb-3 text-muted-foreground">{periodText}</div>
       </div>
 
       {/* Statement summary */}
-      <section className="register-paper rounded-xl border-2 border-primary/30 p-5">
+      <section className="register-paper rounded-xl border p-4">
         <h2 className="mb-3 text-xl font-bold text-primary">{t("statement")}</h2>
         <dl className="grid grid-cols-2 gap-x-6 gap-y-1 text-lg md:grid-cols-4">
           <dt>{range.from ? t("broughtForward") : t("opening")}</dt><dd className="num">{fmt(st.broughtForward)}</dd>
@@ -267,8 +267,8 @@ export function PartyLedger({ id, initialFrom, initialTo }: { id: string; initia
           <Field label={t("date")}><DateInput value={form.date} onChange={(v) => setForm({ ...form, date: v })} /></Field>
           <Field label={action ? t(action.handler) : ""}><OwnerSelect value={form.handler} onChange={(v) => setForm((f) => ({ ...f, handler: v }))} /></Field>
           {action?.kind !== "adjustment" && <Field label={t("method")}><MethodSelect value={form.method} onChange={(v) => setForm({ ...form, method: v })} /></Field>}
-          <Field label={t("note")} className="md:col-span-2"><Input className="h-12" value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} /></Field>
-          <Field label={t("receiptPhoto")}><Input className="h-12" type="file" accept="image/*,application/pdf" capture="environment" onChange={(e) => setFile(e.target.files?.[0] ?? null)} /></Field>
+          <Field label={t("note")} className="md:col-span-2"><Input className="h-10" value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} /></Field>
+          <Field label={t("receiptPhoto")}><Input className="h-10" type="file" accept="image/*,application/pdf" capture="environment" onChange={(e) => setFile(e.target.files?.[0] ?? null)} /></Field>
           <div className="flex items-end md:col-span-4">
             <ConfirmButton size="lg" onConfirm={save} disabled={!form.amount || busy}
               description={`${action ? t(action.label) : ""}: Rs ${fmt(parseWhole(form.amount) ?? 0)} — ${t("balanceChange")}`}>
@@ -282,7 +282,7 @@ export function PartyLedger({ id, initialFrom, initialTo }: { id: string; initia
 
       {/* Running ledger */}
       <section className="overflow-x-auto rounded-xl border bg-card">
-        <table className="w-full text-base">
+        <table className="w-full text-sm">
           <thead className="bg-secondary"><tr>
             <th className="p-2 text-start">{t("date")}</th><th className="p-2 text-start">{t("detail")}</th>
             <th className="p-2">+</th><th className="p-2">−</th><th className="p-2">{t("balance")}</th><th className="no-print" />
@@ -322,11 +322,6 @@ export function PartyLedger({ id, initialFrom, initialTo }: { id: string; initia
   );
 }
 
-function digitsMonth(d: string, lang: string) {
-  const dt = new Date(`${monthStart(d)}T00:00:00Z`);
-  return fmtDate(d).slice(3) + (lang === "en" ? ` (${dt.toLocaleString("en", { month: "short", timeZone: "UTC" })})` : "");
-}
-
 export function kindKey(k: PartyKind): Key {
   return ({ patheer: "patheer", rehra: "rehra", nakasi: "nakasi", employee: "employees", customer: "customers", vendor: "vendors" } as const)[k];
 }
@@ -347,7 +342,7 @@ function SalaryPoster({ partyId, monthly }: { partyId: string; monthly: number }
   return (
     <Section title={t("postSalary")} className="no-print">
       <div className="flex flex-wrap items-end gap-2">
-        <Field label={t("month")}><Input className="h-12" type="month" value={month} onChange={(e) => setMonth(e.target.value)} /></Field>
+        <Field label={t("month")}><Input className="h-10" type="month" value={month} onChange={(e) => setMonth(e.target.value)} /></Field>
         <Field label={t("amount")}><NumInput value={amount} onChange={setAmount} className="w-40" /></Field>
         <ConfirmButton onConfirm={post} disabled={!amount || !month}>{t("postSalary")}</ConfirmButton>
       </div>
@@ -415,9 +410,9 @@ function PartyDetails({ party }: { party: Tables<"parties"> }) {
   return (
     <Section title={t("details")} className="no-print">
       <div className="grid gap-3 md:grid-cols-3">
-        <Field label={t("name")}><Input className="h-12 text-lg" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
-        <Field label={t("phone")}><Input className="num h-12" inputMode="tel" value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} /></Field>
-        <Field label={t("address")}><Input className="h-12" value={f.address} onChange={(e) => setF({ ...f, address: e.target.value })} /></Field>
+        <Field label={t("name")}><Input className="h-10 text-lg" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
+        <Field label={t("phone")}><Input className="num h-10" inputMode="tel" value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} /></Field>
+        <Field label={t("address")}><Input className="h-10" value={f.address} onChange={(e) => setF({ ...f, address: e.target.value })} /></Field>
         {party.kind === "patheer" && (
           <Field label={t("type")}><Select value={f.type} onChange={(e) => setF({ ...f, type: e.target.value })}>
             <option value="simple">{t("simple")}</option><option value="tile9t">{t("tile9t")}</option><option value="special">{t("specialBrick")}</option>

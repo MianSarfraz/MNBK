@@ -44,7 +44,7 @@ export default function SalesList() {
   const paid = rows.reduce((a, r) => a + r.paidNow, 0);
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <PrintHeader title={t("sales")} sub={`${fmtDate(range.from)} → ${fmtDate(range.to)}`} />
       <PageHeader title={t("sales")} actions={<>
         <Link href="/sales/new" className="inline-flex h-10 items-center rounded-md bg-primary px-5 text-lg text-primary-foreground">{t("newSale")}</Link>
@@ -57,7 +57,7 @@ export default function SalesList() {
       <div className="no-print flex flex-wrap items-end gap-2 rounded-xl border bg-card p-3">
         <Field label={t("from")}><DateInput value={range.from} onChange={(v) => setRange({ ...range, from: v })} /></Field>
         <Field label={t("to")}><DateInput value={range.to} onChange={(v) => setRange({ ...range, to: v })} /></Field>
-        <Field label={t("search")} className="min-w-48 flex-1"><Input className="h-12" value={search} onChange={(e) => setSearch(e.target.value)} /></Field>
+        <Field label={t("search")} className="min-w-48 flex-1"><Input className="h-10" value={search} onChange={(e) => setSearch(e.target.value)} /></Field>
       </div>
       <div className="grid grid-cols-3 gap-3">
         <Stat label={t("bricksSold")} value={bricks} />
@@ -65,7 +65,7 @@ export default function SalesList() {
         <Stat label={t("receivedWithInvoice")} value={paid} money tone="good" />
       </div>
       <div className="overflow-x-auto rounded-xl border bg-card">
-        <table className="w-full text-base">
+        <table className="w-full text-sm">
           <thead className="bg-secondary"><tr>
             <th className="p-2 text-start">#</th><th className="p-2 text-start">{t("date")}</th><th className="p-2 text-start">{t("customer")}</th>
             <th className="p-2 text-start">{t("vehicle")}</th><th className="p-2">{t("bricks")}</th><th className="p-2">{t("total")}</th><th className="p-2">{t("received")}</th>

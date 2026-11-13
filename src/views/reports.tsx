@@ -23,7 +23,7 @@ const EXPORT_TABLES: TableName[] = [
 ];
 
 export default function ReportsPage() {
-  const { t, lang } = useT();
+  const { t } = useT();
   const router = useRouter();
   const seasons = useSeasons();
   const parties = useParties();
@@ -87,7 +87,7 @@ export default function ReportsPage() {
     return { p, costBy, bricks, sold, byCat, cashIn, cashOut, kharcha };
   }, [pnlQ.data]);
 
-  const catName = (id: string) => { const c = (cats.data ?? []).find((x) => x.id === id); return c ? (lang === "ur" ? c.name_ur : c.name_en) : t("otherExpense"); };
+  const catName = (id: string) => { const c = (cats.data ?? []).find((x) => x.id === id); return c ? c.name_en : t("otherExpense"); };
   const bal = new Map((ledgers.data ?? []).map((l) => [l.party_id!, Number(l.balance)]));
   const outstanding = PARTY_KINDS.filter((k) => k !== "vendor").map((k) => {
     const rows = (parties.data ?? []).filter((p) => p.kind === k && (bal.get(p.id) ?? 0) !== 0).map((p) => ({ p, b: bal.get(p.id) ?? 0 })).sort((a, b) => Math.abs(b.b) - Math.abs(a.b));
@@ -130,7 +130,7 @@ export default function ReportsPage() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <PrintHeader title={`${t("reports")} — ${season?.name ?? ""}`} sub={season ? `${fmtDate(season.start_date)} → ${fmtDate(season.end_date)}` : undefined} />
       <PageHeader title={t("reports")} actions={<>
         <Select className="w-48" value={seasonId} onChange={(e) => setSeasonId(e.target.value)}>
@@ -141,9 +141,9 @@ export default function ReportsPage() {
       </>} />
 
       {!season ? <Empty>{t("noSeason")}</Empty> : !pnl ? <Empty>…</Empty> : (
-        <section className="register-paper rounded-xl border-2 border-primary/30 p-5">
+        <section className="register-paper rounded-xl border p-4">
           <h2 className="mb-3 text-xl font-bold text-primary">{t("profitLoss")} — {season.name}</h2>
-          <div className="grid gap-6 md:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-2">
             <dl className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1 text-lg">
               <dt className="font-bold">{t("income")}</dt><dd />
               <dt>{t("salesTotal")}</dt><dd className="num">{fmt(pnl.p.sales)}</dd>
@@ -158,7 +158,7 @@ export default function ReportsPage() {
             <div className="space-y-3">
               <div className={`rounded-xl border-2 p-4 text-center ${pnl.p.profit >= 0 ? "border-success" : "border-destructive"}`}>
                 <div className="text-lg">{pnl.p.profit >= 0 ? t("profit") : t("loss")}</div>
-                <div className={`num text-4xl font-bold ${pnl.p.profit >= 0 ? "text-success" : "text-destructive"}`}>Rs {fmt(Math.abs(pnl.p.profit))}</div>
+                <div className={`num text-2xl font-bold ${pnl.p.profit >= 0 ? "text-success" : "text-destructive"}`}>Rs {fmt(Math.abs(pnl.p.profit))}</div>
               </div>
               <p className="text-sm text-muted-foreground">{t("pnlHelp")}</p>
               <div className="grid grid-cols-2 gap-2">
@@ -187,7 +187,7 @@ export default function ReportsPage() {
           <Field label={t("from")}><DateInput value={stmt.from || season?.start_date || ""} onChange={(v) => setStmt({ ...stmt, from: v })} /></Field>
           <Field label={t("to")}><DateInput value={stmt.to || season?.end_date || ""} onChange={(v) => setStmt({ ...stmt, to: v })} /></Field>
           <Button size="lg" disabled={!stmt.party} onClick={() => router.push(`/party/${stmt.party}?from=${stmt.from || (season?.start_date ?? "")}&to=${stmt.to || (season?.end_date ?? "")}`)}>{t("openStatement")}</Button>
-          <Link href="/owners" className="inline-flex h-12 items-center rounded-md border bg-card px-4">{t("ownersTitle")}</Link>
+          <Link href="/owners" className="inline-flex h-10 items-center rounded-md border bg-card px-4">{t("ownersTitle")}</Link>
         </div>
       </Section>
 
@@ -200,7 +200,7 @@ export default function ReportsPage() {
                 <span className="num text-sm"><span className="text-warning-foreground">↑ {fmt(o.weOwe)}</span> · <span className="text-success">↓ {fmt(o.theyOwe)}</span></span>
               </div>
               {!o.rows.length ? <div className="text-sm text-muted-foreground">{t("settled")}</div> : (
-                <table className="w-full text-base"><tbody>
+                <table className="w-full text-sm"><tbody>
                   {o.rows.slice(0, 50).map((r) => (
                     <tr key={r.p.id} className="border-t">
                       <td className="p-1"><Link href={`/party/${r.p.id}`} className="hover:underline">{r.p.name}</Link></td>

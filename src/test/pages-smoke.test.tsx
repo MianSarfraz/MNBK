@@ -2,7 +2,7 @@
 // so a render-time crash on any screen fails the build. No network is used.
 import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, cleanup } from "@testing-library/react";
+import { render, screen, waitFor, cleanup, fireEvent } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "@/lib/i18n";
 const U1 = "11111111-1111-1111-1111-111111111111";
@@ -18,10 +18,10 @@ const DB: Record<string, Record<string, unknown>[]> = {
   seasons: [{ ...base, id: S1, name: "2026-27", start_date: "2026-11-05", end_date: "2027-06-30", is_closed: false }],
   weeks: [{ id: W1, season_id: S1, week_number: 1, start_date: "2026-11-12", end_date: "2026-11-18", created_by: U1, created_at: base.created_at }],
   qualities: [
-    { ...base, id: QA, name_en: "Awal", name_ur: "اول", kind: "nakasi", category: "normal", is_active: true, sort_order: 1, stock_quality_id: null },
-    { ...base, id: QS, name_en: "Awal", name_ur: "اول", kind: "sale", category: "normal", is_active: true, sort_order: 2, stock_quality_id: QA },
+    { ...base, id: QA, name_en: "Awal", name_ur: "Awal", kind: "nakasi", category: "normal", is_active: true, sort_order: 1, stock_quality_id: null },
+    { ...base, id: QS, name_en: "Awal", name_ur: "Awal", kind: "sale", category: "normal", is_active: true, sort_order: 2, stock_quality_id: QA },
   ],
-  expense_categories: [{ ...base, id: "cat-1", name_en: "Diesel", name_ur: "ڈیزل", is_active: true, sort_order: 1 }],
+  expense_categories: [{ ...base, id: "cat-1", name_en: "Diesel", name_ur: "Diesel", is_active: true, sort_order: 1 }],
   parties: [party(P1, "patheer", "Akram"), party(C1, "customer", "Bashir", { opening_balance: -1000 }), party(E1, "employee", "Munshi", { monthly_salary: 30000 }), party(N1, "nakasi", "Nadeem"), party(R1, "rehra", "Rafiq")],
   party_rates: [
     { ...base, id: "r1", party_id: P1, kind: "earning", rate_per_1000: 1600, effective_from: "2026-11-01" },
@@ -46,12 +46,14 @@ const DB: Record<string, Record<string, unknown>[]> = {
     { party_id: P1, party_kind: "patheer", balance: 12600 },
     { party_id: C1, party_kind: "customer", balance: -46000 },
   ],
-  finished_stock: [{ quality_id: QA, name_en: "Awal", name_ur: "اول", category: "normal", produced: 30000, sold: 10000, adjusted: 0, balance: 20000 }],
+  finished_stock: [{ quality_id: QA, name_en: "Awal", name_ur: "Awal", category: "normal", produced: 30000, sold: 10000, adjusted: 0, balance: 20000 }],
   raw_stock: [{ made: 48500, loaded: 40000, adjusted: 0, balance: 8500 }],
   stock_adjustments: [],
   cash_counts: [],
   audit_log: [{ id: 1, table_name: "transactions", row_id: "t1", action: "UPDATE", old_values: { amount: 1 }, new_values: { amount: 2 }, changed_by: U1, changed_at: base.created_at }],
 };
+
+const WRITES: { table: string; op: string; payload: unknown }[] = [];
 
 /** Chainable stand-in for the PostgREST query builder: filters `eq` on known columns, ignores the rest. */
 function builder(table: string) {
@@ -59,7 +61,9 @@ function builder(table: string) {
   let single = false;
   const b: Record<string, unknown> = {};
   const chain = (fn?: () => void) => () => { fn?.(); return b; };
-  for (const m of ["select", "is", "in", "order", "gte", "lte", "not", "limit", "range", "insert", "update", "upsert"]) b[m] = chain();
+  for (const m of ["select", "is", "in", "order", "gte", "lte", "not", "limit", "range", "upsert"]) b[m] = chain();
+  b["insert"] = (payload: unknown) => { WRITES.push({ table, op: "insert", payload }); rows = []; return b; };
+  b["update"] = (payload: unknown) => { WRITES.push({ table, op: "update", payload }); return b; };
   b["eq"] = (col: string, val: unknown) => { rows = rows.filter((r) => !(col in r) || r[col] === val); return b; };
   b["single"] = chain(() => (single = true));
   b["maybeSingle"] = chain(() => (single = true));
@@ -121,27 +125,27 @@ async function mount(path: string) {
 }
 
 const PAGES: [string, RegExp][] = [
-  ["/dashboard", /اس ہفتے/],
-  ["/weekly", /ہفتہ وار رجسٹر/],
+  ["/dashboard", /This week/],
+  ["/weekly", /Add entry for any date/],
   ["/patheer", /Akram/],
-  ["/rehra", /رہڑا کھاتہ/],
-  ["/nakasi", /نکاسی کھاتہ/],
+  ["/rehra", /Rehra khatta/],
+  ["/nakasi", /Nakasi khatta/],
   ["/sales", /Bashir/],
-  ["/sales/new", /بل محفوظ کریں/],
-  [`/sales/${SALE}`, /بل کی کل رقم/],
-  ["/stock", /پکی اینٹوں کا اسٹاک/],
-  ["/expenses", /خرچ کھاتہ/],
-  ["/owners", /بھائیوں کے درمیان حساب|مالکان کا حساب/],
-  ["/reports", /نفع و نقصان/],
-  ["/history", /تبدیلیوں کا ریکارڈ/],
+  ["/sales/new", /Save invoice/],
+  [`/sales/${SALE}`, /Invoice total/],
+  ["/stock", /Finished stock/],
+  ["/expenses", /Expense khatta/],
+  ["/owners", /Between the brothers|Owners/],
+  ["/reports", /Profit & loss/],
+  ["/history", /Edit history/],
   ["/seasons", /2026-27/],
-  ["/qualities", /اسٹاک سے/],
+  ["/qualities", /Stock from/],
   ["/people/customer", /Bashir/],
   ["/people/employee", /Munshi/],
-  [`/party/${P1}`, /حساب کا گوشوارہ/],
-  [`/party/${C1}`, /حساب کا گوشوارہ/],
-  [`/party/${E1}`, /مہینے کی تنخواہ درج کریں/],
-  [`/party/${N1}`, /حساب کا گوشوارہ/],
+  [`/party/${P1}`, /Statement/],
+  [`/party/${C1}`, /Statement/],
+  [`/party/${E1}`, /Post month's salary/],
+  [`/party/${N1}`, /Statement/],
 ];
 
 describe("every page renders with data", () => {
@@ -160,13 +164,13 @@ describe("ledger screens show the right numbers", () => {
     const { spy } = await mount(`/party/${P1}`);
     await waitFor(() => expect(screen.getAllByText("77,600").length).toBeGreaterThan(0), { timeout: 4000 });
     expect(screen.getAllByText("12,600").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("ہم نے دینا ہے").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("We owe him").length).toBeGreaterThan(0);
     spy.mockRestore();
   });
   it("customer: opening 1,000 + invoice 145,000 − paid 100,000 = he owes 46,000", async () => {
     const { spy } = await mount(`/party/${C1}`);
     await waitFor(() => expect(screen.getAllByText("46,000").length).toBeGreaterThan(0), { timeout: 4000 });
-    expect(screen.getAllByText("اس نے دینا ہے").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("He owes us").length).toBeGreaterThan(0);
     spy.mockRestore();
   });
   it("invoice page: 10,000 @ 14,500 = 145,000, received 100,000, due 45,000", async () => {
@@ -174,5 +178,27 @@ describe("ledger screens show the right numbers", () => {
     await waitFor(() => expect(screen.getAllByText("Rs 145,000").length).toBeGreaterThan(0), { timeout: 4000 });
     expect(screen.getAllByText("45,000").length).toBeGreaterThan(0);
     spy.mockRestore();
+  });
+});
+
+describe("weekly register", () => {
+  it("saves a count with only its date — the database assigns week and season", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-14T10:00:00Z"));
+    try { sessionStorage.clear(); localStorage.clear(); } catch { /* ignore */ }
+    WRITES.length = 0;
+    const { spy } = await mount("/weekly");
+    const cell = await screen.findByLabelText("Akram 2026-11-13 Estimated", {}, { timeout: 4000 });
+    fireEvent.blur(cell, { target: { value: "2000" } });
+    await waitFor(() => expect(WRITES.some((w) => w.table === "production_entries")).toBe(true), { timeout: 4000 });
+    const w = WRITES.find((x) => x.table === "production_entries")!;
+    expect(w.op).toBe("insert");
+    expect(w.payload).toMatchObject({ party_id: P1, entry_date: "2026-11-13", estimated_count: 2000 });
+    expect(w.payload).not.toHaveProperty("week_id");
+    expect(w.payload).not.toHaveProperty("season_id");
+    fireEvent.click(screen.getByText("Day"));
+    expect(await screen.findByLabelText("Akram Estimated")).toBeInTheDocument();
+    spy.mockRestore();
+    vi.useRealTimers();
   });
 });

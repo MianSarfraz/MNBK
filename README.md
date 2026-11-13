@@ -1,7 +1,7 @@
 # Mian Nawaz Bricks — kiln khatta
 
-Urdu-first (RTL, English toggle), mobile-first brick-kiln management: patheer, rehra, nakasi, sales, stock,
-expense and owner khattas, organised by Thursday–Wednesday weeks within seasons.
+Mobile-first brick-kiln management (English): patheer, rehra, nakasi, sales, stock,
+expense and owner khattas, organised by Thursday–Wednesday weeks. Weeks and seasons (1 July – 30 June) are created automatically from entry dates — nothing to set up.
 
 Stack: Next.js 15 (App Router, React 19, TypeScript), Supabase (Postgres + auth + storage, RLS, cookie sessions via `@supabase/ssr`), Tailwind CSS 4.
 
@@ -39,9 +39,10 @@ adjustments, cash counts, the receipts bucket and the views above. Apply all mig
    NEXT_PUBLIC_SUPABASE_URL="https://<project-ref>.supabase.co"
    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="sb_publishable_…"
    ```
-2. On an empty project, run every file in `drizzle/migrations/` in order (Supabase SQL editor), or
+2. On an empty project, run `supabase/setup.sql` once in the Supabase SQL editor (it contains every migration). If you ran an older
+   setup.sql, run just the newer migration files (e.g. `drizzle/migrations/0006_auto_weeks.sql`). Or use
    `DATABASE_URL=postgres://… npx drizzle-kit migrate`.
-3. Sign up both owners (the first two accounts become owners), then turn off sign-ups in Supabase Auth settings.
+3. Sign up both owners — Sarfraz and Muhammad Nawaz (the first two accounts become owners) — then turn off sign-ups in Supabase Auth settings.
 
 ## Development
 

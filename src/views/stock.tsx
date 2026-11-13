@@ -17,7 +17,7 @@ import { DateInput, Empty, Field, NumInput, PageHeader, PrintHeader, Section, Se
 const CAT: Record<string, Key> = { normal: "catNormal", nine_t: "cat9t", special: "catSpecial", other: "catOther" };
 
 export default function StockPage() {
-  const { t, lang } = useT();
+  const { t } = useT();
   const qc = useQueryClient();
   const qualities = useQualities();
   const seasons = useSeasons();
@@ -72,7 +72,7 @@ export default function StockPage() {
   const finRows = fin.data ?? [];
   const cats = ["normal", "nine_t", "special", "other"].filter((c) => finRows.some((r) => r.category === c));
   const unmapped = (qualities.data ?? []).filter((q) => q.kind === "sale" && q.is_active && !q.stock_quality_id);
-  const qName = (id: string | null) => { const q = (qualities.data ?? []).find((x) => x.id === id); return q ? (lang === "ur" ? q.name_ur : q.name_en) : t("rawBricks"); };
+  const qName = (id: string | null) => { const q = (qualities.data ?? []).find((x) => x.id === id); return q ? q.name_en : t("rawBricks"); };
 
   async function voidAdj(id: string) {
     const { error } = await supabase.from("stock_adjustments").update({ deleted_at: new Date().toISOString() }).eq("id", id);
@@ -81,11 +81,11 @@ export default function StockPage() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <PrintHeader title={t("stock")} />
       <PageHeader title={t("stock")} actions={<>
         <Button variant="outline" onClick={() => downloadExcel(`stock-${today()}`, [
-          { name: "Finished stock", rows: [["Quality", "Category", "Baked out (nakasi)", "Sold", "Adjusted", "In stock"], ...finRows.map((r) => [lang === "ur" ? r.name_ur : r.name_en, r.category, Number(r.produced), Number(r.sold), Number(r.adjusted), Number(r.balance)])] },
+          { name: "Finished stock", rows: [["Quality", "Category", "Baked out (nakasi)", "Sold", "Adjusted", "In stock"], ...finRows.map((r) => [r.name_en, r.category, Number(r.produced), Number(r.sold), Number(r.adjusted), Number(r.balance)])] },
           { name: "Raw stock", rows: [["Patheer", "Made (confirmed)", "Loaded (with source)"], ...byPatheer.map((r) => [r.p.name, r.made, r.loaded]), ["(no source)", null, unattributed], [], ["Total", rs.made, rs.loaded], ["Adjusted", rs.adjusted], ["At yard", rs.balance]] },
         ])}>Excel</Button>
         <Button variant="outline" onClick={() => window.print()}>{t("print")} / PDF</Button>
@@ -94,7 +94,7 @@ export default function StockPage() {
       <Section title={t("finishedStock")}>
         {!finRows.length ? <Empty /> : (
           <div className="overflow-x-auto">
-            <table className="w-full text-base">
+            <table className="w-full text-sm">
               <thead className="bg-secondary"><tr>
                 <th className="p-2 text-start">{t("quality")}</th><th className="p-2">{t("bakedOut")}</th><th className="p-2">{t("sold")}</th><th className="p-2">{t("adjusted")}</th><th className="p-2">{t("inStock")}</th>
               </tr></thead>
@@ -105,7 +105,7 @@ export default function StockPage() {
                     <tr key={c} className="bg-muted/50"><td colSpan={5} className="p-1 px-2 text-sm font-bold">{t(CAT[c]!)}</td></tr>,
                     ...rows.map((r) => (
                       <tr key={r.quality_id} className="border-t">
-                        <td className="p-2 font-semibold">{lang === "ur" ? r.name_ur : r.name_en}</td>
+                        <td className="p-2 font-semibold">{r.name_en}</td>
                         <td className="num p-2 text-center">{fmt(Number(r.produced))}</td>
                         <td className="num p-2 text-center">{fmt(Number(r.sold))}</td>
                         <td className="num p-2 text-center">{fmt(Number(r.adjusted))}</td>
@@ -121,7 +121,7 @@ export default function StockPage() {
           </div>
         )}
         {unmapped.length > 0 && (
-          <p className="mt-3 text-sm text-warning-foreground">⚠ {t("unmappedQualities")}: {unmapped.map((q) => (lang === "ur" ? q.name_ur : q.name_en)).join("، ")} — <Link href="/qualities" className="text-primary underline">{t("qualities")}</Link></p>
+          <p className="mt-3 text-sm text-warning-foreground">⚠ {t("unmappedQualities")}: {unmapped.map((q) => q.name_en).join(", ")} — <Link href="/qualities" className="text-primary underline">{t("qualities")}</Link></p>
         )}
       </Section>
 
@@ -137,7 +137,7 @@ export default function StockPage() {
         </div>
         {byPatheer.length > 0 && (
           <div className="mt-4 overflow-x-auto">
-            <table className="w-full text-base">
+            <table className="w-full text-sm">
               <thead><tr className="text-muted-foreground"><th className="p-2 text-start">{t("patheer")}</th><th className="p-2">{t("madeConfirmed")}</th><th className="p-2">{t("loadedFromHim")}</th></tr></thead>
               <tbody>
                 {byPatheer.map((r) => (
@@ -155,7 +155,7 @@ export default function StockPage() {
       <Section title={t("adjustments")}>
         {!(adj.data ?? []).length ? <Empty /> : (
           <div className="overflow-x-auto">
-            <table className="w-full text-base">
+            <table className="w-full text-sm">
               <thead><tr className="text-muted-foreground"><th className="p-2 text-start">{t("date")}</th><th className="p-2 text-start">{t("quality")}</th><th className="p-2">{t("bricks")}</th><th className="p-2 text-start">{t("reason")}</th><th /></tr></thead>
               <tbody>
                 {(adj.data ?? []).map((a) => (
@@ -177,7 +177,7 @@ export default function StockPage() {
 }
 
 function AdjustmentForm() {
-  const { t, lang } = useT();
+  const { t } = useT();
   const qc = useQueryClient();
   const qualities = useQualities();
   const [f, setF] = useState({ stock: "finished" as "finished" | "raw", quality: "", date: today(), dir: "-1", count: "", reason: "" });
@@ -201,14 +201,14 @@ function AdjustmentForm() {
           <option value="finished">{t("finishedStock")}</option><option value="raw">{t("rawStock")}</option>
         </Select></Field>
         {f.stock === "finished" && <Field label={t("quality")}><Select value={f.quality} onChange={(e) => setF({ ...f, quality: e.target.value })}>
-          <option value="">—</option>{(qualities.data ?? []).filter((q) => q.kind === "nakasi").map((q) => <option key={q.id} value={q.id}>{lang === "ur" ? q.name_ur : q.name_en}</option>)}
+          <option value="">—</option>{(qualities.data ?? []).filter((q) => q.kind === "nakasi").map((q) => <option key={q.id} value={q.id}>{q.name_en}</option>)}
         </Select></Field>}
         <Field label={t("type")}><Select value={f.dir} onChange={(e) => setF({ ...f, dir: e.target.value })}>
           <option value="-1">− {t("reduce")}</option><option value="1">+ {t("increase")}</option>
         </Select></Field>
         <Field label={t("bricks")}><NumInput value={f.count} onChange={(v) => setF({ ...f, count: v })} /></Field>
         <Field label={t("date")}><DateInput value={f.date} onChange={(v) => setF({ ...f, date: v })} /></Field>
-        <Field label={t("reason")} className="md:col-span-4"><Input className="h-12" value={f.reason} onChange={(e) => setF({ ...f, reason: e.target.value })} placeholder={t("reasonExample")} required /></Field>
+        <Field label={t("reason")} className="md:col-span-4"><Input className="h-10" value={f.reason} onChange={(e) => setF({ ...f, reason: e.target.value })} placeholder={t("reasonExample")} required /></Field>
         <div className="flex items-end"><ConfirmButton size="lg" onConfirm={save} disabled={!f.count || !f.reason.trim()} description={t("stockChange")}>{t("save")}</ConfirmButton></div>
       </div>
     </Section>

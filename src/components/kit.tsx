@@ -5,13 +5,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { fmt, fmtDate, useT, type Key } from "@/lib/i18n";
-import { normalizeDigits } from "@/lib/kiln-math";
-import { seasonForDate, today, useOwners, useSeasons, useWeeks } from "@/lib/data";
+import { addDays, normalizeDigits, weekStart } from "@/lib/kiln-math";
+import { seasonForDate, today, useOwners, useSeasons } from "@/lib/data";
 
 export function Field({ label, children, className, hint }: { label: ReactNode; children: ReactNode; className?: string; hint?: ReactNode }) {
   return (
     <div className={cn("space-y-1", className)}>
-      <Label className="text-base">{label}</Label>
+      <Label className="text-sm text-muted-foreground">{label}</Label>
       {children}
       {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
     </div>
@@ -19,7 +19,7 @@ export function Field({ label, children, className, hint }: { label: ReactNode; 
 }
 
 export function Select({ className, ...p }: SelectHTMLAttributes<HTMLSelectElement>) {
-  return <select {...p} className={cn("h-12 w-full rounded-md border bg-background px-2 text-lg disabled:opacity-50", className)} />;
+  return <select {...p} className={cn("h-10 w-full rounded-md border bg-background px-2 text-base disabled:opacity-50", className)} />;
 }
 
 /** Big whole-number input. Accepts Urdu digits from phone keyboards. */
@@ -28,13 +28,13 @@ export function NumInput({ value, onChange, allowNegative, className, ...p }: {
   placeholder?: string; disabled?: boolean; required?: boolean; autoFocus?: boolean; id?: string;
 }) {
   return (
-    <Input {...p} className={cn("num h-12 text-xl", className)} inputMode="numeric" value={value}
+    <Input {...p} className={cn("num h-10 text-lg", className)} inputMode="numeric" value={value}
       onChange={(e) => onChange(normalizeDigits(e.target.value, allowNegative))} />
   );
 }
 
 export function DateInput({ value, onChange, className, min, max }: { value: string; onChange: (v: string) => void; className?: string; min?: string | undefined; max?: string | undefined }) {
-  return <Input className={cn("h-12", className)} type="date" value={value} min={min} max={max} onChange={(e) => onChange(e.target.value)} required />;
+  return <Input className={cn("h-10", className)} type="date" value={value} min={min} max={max} onChange={(e) => onChange(e.target.value)} required />;
 }
 
 export function OwnerSelect({ value, onChange, className, placeholder }: { value: string; onChange: (v: string) => void; className?: string; placeholder?: string }) {
@@ -70,8 +70,8 @@ export function PageHeader({ title, sub, actions }: { title: ReactNode; sub?: Re
   return (
     <div className="flex flex-wrap items-end justify-between gap-3">
       <div>
-        <h1 className="text-2xl font-bold md:text-3xl">{title}</h1>
-        {sub && <div className="text-muted-foreground">{sub}</div>}
+        <h1 className="text-xl font-bold md:text-2xl">{title}</h1>
+        {sub && <div className="text-sm text-muted-foreground">{sub}</div>}
       </div>
       {actions && <div className="no-print flex flex-wrap gap-2">{actions}</div>}
     </div>
@@ -80,9 +80,9 @@ export function PageHeader({ title, sub, actions }: { title: ReactNode; sub?: Re
 
 export function Stat({ label, value, tone, money, sub }: { label: ReactNode; value: number | null | undefined; tone?: "good" | "bad" | "warn" | undefined; money?: boolean; sub?: ReactNode | undefined }) {
   return (
-    <div className="rounded-xl border bg-card p-4 shadow-sm">
-      <div className="text-sm text-muted-foreground">{label}</div>
-      <div className={cn("num mt-1 text-2xl font-semibold text-primary", tone === "good" && "text-success", tone === "bad" && "text-destructive", tone === "warn" && "text-warning-foreground")}>
+    <div className="rounded-xl border bg-card p-3">
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className={cn("num mt-0.5 text-lg font-semibold md:text-xl text-primary", tone === "good" && "text-success", tone === "bad" && "text-destructive", tone === "warn" && "text-warning-foreground")}>
         {money ? "Rs " : ""}{fmt(value ?? 0)}
       </div>
       {sub && <div className="text-xs text-muted-foreground">{sub}</div>}
@@ -92,10 +92,10 @@ export function Stat({ label, value, tone, money, sub }: { label: ReactNode; val
 
 export function Section({ title, children, className, actions }: { title?: ReactNode; children: ReactNode; className?: string; actions?: ReactNode }) {
   return (
-    <section className={cn("rounded-xl border bg-card p-4 md:p-5", className)}>
+    <section className={cn("rounded-xl border bg-card p-3 md:p-4", className)}>
       {(title || actions) && (
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          {title && <h2 className="text-xl font-bold">{title}</h2>}
+          {title && <h2 className="text-base font-semibold md:text-lg">{title}</h2>}
           {actions && <div className="no-print flex flex-wrap gap-2">{actions}</div>}
         </div>
       )}
@@ -106,7 +106,7 @@ export function Section({ title, children, className, actions }: { title?: React
 
 export function Empty({ children }: { children?: ReactNode }) {
   const { t } = useT();
-  return <div className="rounded-lg border border-dashed p-6 text-center text-muted-foreground">{children ?? t("nothingYet")}</div>;
+  return <div className="rounded-lg border border-dashed p-4 text-center text-muted-foreground">{children ?? t("nothingYet")}</div>;
 }
 
 /** Shown only when printing: business name and statement title. */
@@ -122,50 +122,50 @@ export function PrintHeader({ title, sub }: { title: ReactNode; sub?: ReactNode 
   );
 }
 
-/** Season + week selection shared by the weekly registers. Defaults to the open season and this week. */
-export function useSeasonWeek() {
+const WEEK_KEY = "mnb-week";
+/** Week (Thu–Wed) navigation by date — weeks and seasons are created automatically, nothing to set up. */
+export function useWeekNav() {
   const seasons = useSeasons();
-  const [seasonId, setSeasonId] = useState<string>();
-  useEffect(() => {
-    if (seasonId || !seasons.data?.length) return;
-    const open = seasons.data.filter((s) => !s.is_closed);
-    setSeasonId((seasonForDate(open, today()) ?? open[0] ?? seasons.data[0]!).id);
-  }, [seasons.data, seasonId]);
-  const weeks = useWeeks(seasonId);
-  const [weekId, setWeekId] = useState<string>();
-  useEffect(() => {
-    if (!weeks.data?.length) return;
-    if (weekId && weeks.data.some((w) => w.id === weekId)) return;
-    const d = today();
-    setWeekId((weeks.data.find((w) => w.start_date <= d && w.end_date >= d) ?? weeks.data[weeks.data.length - 1]!).id);
-  }, [weeks.data, weekId]);
-  const season = (seasons.data ?? []).find((s) => s.id === seasonId);
-  const week = (weeks.data ?? []).find((w) => w.id === weekId);
+  const [start, setStart] = useState(() => {
+    try { const v = sessionStorage.getItem(WEEK_KEY); if (v && /^\d{4}-\d{2}-\d{2}$/.test(v)) return weekStart(v); } catch { /* ignore */ }
+    return weekStart(today());
+  });
+  const go = (date: string) => {
+    const ws = weekStart(date);
+    try { sessionStorage.setItem(WEEK_KEY, ws); } catch { /* ignore */ }
+    setStart(ws);
+  };
+  const end = addDays(start, 6);
+  const season = seasonForDate(seasons.data ?? [], start);
+  const firstThu = season ? weekStart(season.start_date) : undefined;
+  const weekNo = firstThu ? Math.round((Date.parse(start) - Date.parse(firstThu)) / (7 * 86400000)) + 1 : undefined;
   return {
-    seasons, season, seasonId, weeks, week, weekId, setWeekId,
-    setSeasonId: (id: string) => { setSeasonId(id); setWeekId(undefined); },
+    start, end, season, weekNo, go,
+    prev: () => go(addDays(start, -7)), next: () => go(addDays(start, 7)),
+    isThisWeek: start === weekStart(today()),
     readOnly: !!season?.is_closed,
   };
 }
+export type WeekNav = ReturnType<typeof useWeekNav>;
 
-export function SeasonWeekPicker({ sw }: { sw: ReturnType<typeof useSeasonWeek> }) {
+export function WeekPicker({ nav }: { nav: WeekNav }) {
   const { t } = useT();
-  const idx = (sw.weeks.data ?? []).findIndex((w) => w.id === sw.weekId);
-  const step = (d: number) => {
-    const w = (sw.weeks.data ?? [])[idx + d];
-    if (w) sw.setWeekId(w.id);
-  };
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <Select className="w-auto bg-card" value={sw.seasonId ?? ""} onChange={(e) => sw.setSeasonId(e.target.value)}>
-        {(sw.seasons.data ?? []).map((s) => <option key={s.id} value={s.id}>{s.name}{s.is_closed ? ` (${t("closed")})` : ""}</option>)}
-      </Select>
-      <button type="button" className="h-12 rounded-md border bg-card px-3 text-xl disabled:opacity-40" disabled={idx <= 0} onClick={() => step(-1)} aria-label="previous week"><span className="inline-block rtl:rotate-180">‹</span></button>
-      <Select className="num w-auto bg-card" value={sw.weekId ?? ""} onChange={(e) => sw.setWeekId(e.target.value)}>
-        {(sw.weeks.data ?? []).map((w) => <option key={w.id} value={w.id}>#{w.week_number} {fmtDate(w.start_date)} → {fmtDate(w.end_date)}</option>)}
-      </Select>
-      <button type="button" className="h-12 rounded-md border bg-card px-3 text-xl disabled:opacity-40" disabled={idx < 0 || idx >= (sw.weeks.data?.length ?? 0) - 1} onClick={() => step(1)} aria-label="next week"><span className="inline-block rtl:rotate-180">›</span></button>
-      {sw.readOnly && <span className="rounded bg-destructive px-2 text-destructive-foreground">{t("closed")}</span>}
+      <div className="flex items-center rounded-lg border bg-card">
+        <button type="button" className="h-10 px-3 text-lg" onClick={nav.prev} aria-label={t("prevWeek")}>‹</button>
+        <div className="min-w-40 px-1 text-center leading-tight">
+          <div className="num text-sm font-semibold">{fmtDate(nav.start).slice(0, 5)} → {fmtDate(nav.end)}</div>
+          <div className="text-[11px] text-muted-foreground">{nav.season ? `${nav.season.name} · ${t("week")} ${nav.weekNo}` : t("week")}</div>
+        </div>
+        <button type="button" className="h-10 px-3 text-lg" onClick={nav.next} aria-label={t("nextWeek")}>›</button>
+      </div>
+      {!nav.isThisWeek && <button type="button" className="h-10 rounded-lg border bg-card px-3 text-sm" onClick={() => nav.go(today())}>{t("thisWeek")}</button>}
+      <label className="flex h-10 items-center gap-1 rounded-lg border bg-card px-2 text-sm text-muted-foreground">
+        {t("goToDate")}
+        <input type="date" className="bg-transparent text-foreground" value="" onChange={(e) => e.target.value && nav.go(e.target.value)} />
+      </label>
+      {nav.readOnly && <span className="rounded bg-destructive px-2 text-sm text-destructive-foreground">{t("closed")}</span>}
     </div>
   );
 }

@@ -18,7 +18,7 @@ import { DateInput, Field, MethodSelect, NumInput, OwnerSelect, PageHeader, Sect
 type Line = { quality: string; qty: string; rate: string };
 
 export default function NewSale() {
-  const { t, lang } = useT();
+  const { t } = useT();
   const qc = useQueryClient();
   const router = useRouter();
   const initialCustomer = useSearchParams().get("customer") ?? undefined;
@@ -71,11 +71,11 @@ export default function NewSale() {
     for (const [sq, n] of need) {
       const st = (stockQ.data ?? []).find((s) => s.quality_id === sq);
       const avail = Number(st?.balance ?? 0);
-      if (n > avail) out.push(`${lang === "ur" ? st?.name_ur : st?.name_en}: ${t("available")} ${fmt(avail)}, ${t("selling")} ${fmt(n)}`);
+      if (n > avail) out.push(`${st?.name_en}: ${t("available")} ${fmt(avail)}, ${t("selling")} ${fmt(n)}`);
     }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [valid, stockQ.data, lang]);
+  }, [valid, stockQ.data]);
 
   const prevBalance = Number((ledgers.data ?? []).find((l) => l.party_id === h.customer)?.balance ?? 0);
   const paidNow = parseWhole(pay.amount) ?? 0;
@@ -119,7 +119,7 @@ export default function NewSale() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <PageHeader title={t("newSale")} actions={<Link href="/sales" className="inline-flex h-10 items-center rounded-md border bg-card px-4">{t("sales")}</Link>} />
       <Section>
         <div className="grid gap-3 md:grid-cols-4">
@@ -130,9 +130,9 @@ export default function NewSale() {
           </Field>
           <Field label={t("date")}><DateInput value={h.date} onChange={(v) => setH({ ...h, date: v })} /></Field>
           {h.customer && <div className="flex flex-col justify-end pb-2"><span className="text-sm text-muted-foreground">{t("previousBalance")}</span><span className="num text-lg font-bold">{fmt(Math.abs(prevBalance))} <BalanceBadge balance={prevBalance} kind="customer" /></span></div>}
-          <Field label={t("vehicle")}><Input className="h-12 num" value={h.vehicle} onChange={(e) => setH({ ...h, vehicle: e.target.value })} /></Field>
-          <Field label={t("driver")}><Input className="h-12" value={h.driver} onChange={(e) => setH({ ...h, driver: e.target.value })} /></Field>
-          <Field label={t("note")} className="md:col-span-2"><Input className="h-12" value={h.note} onChange={(e) => setH({ ...h, note: e.target.value })} /></Field>
+          <Field label={t("vehicle")}><Input className="h-10 num" value={h.vehicle} onChange={(e) => setH({ ...h, vehicle: e.target.value })} /></Field>
+          <Field label={t("driver")}><Input className="h-10" value={h.driver} onChange={(e) => setH({ ...h, driver: e.target.value })} /></Field>
+          <Field label={t("note")} className="md:col-span-2"><Input className="h-10" value={h.note} onChange={(e) => setH({ ...h, note: e.target.value })} /></Field>
         </div>
       </Section>
 
@@ -141,7 +141,7 @@ export default function NewSale() {
           {parsed.map((l, i) => (
             <div key={i} className="grid grid-cols-2 items-end gap-2 rounded-lg border p-2 md:grid-cols-[2fr_1fr_1fr_1fr_auto]">
               <Field label={t("quality")} className="col-span-2 md:col-span-1"><Select value={l.quality} onChange={(e) => setLine(i, { quality: e.target.value })}>
-                <option value="">—</option>{saleQualities.map((q) => <option key={q.id} value={q.id}>{lang === "ur" ? q.name_ur : q.name_en}</option>)}
+                <option value="">—</option>{saleQualities.map((q) => <option key={q.id} value={q.id}>{q.name_en}</option>)}
               </Select></Field>
               <Field label={t("quantityBricks")}><NumInput value={l.qty} onChange={(v) => setLine(i, { qty: v })} /></Field>
               <Field label={t("rate")}><NumInput value={l.rate} onChange={(v) => setLine(i, { rate: v })} /></Field>
@@ -176,7 +176,7 @@ export default function NewSale() {
           <Field label={t("receivedNow")}><NumInput value={pay.amount} onChange={(v) => setPay({ ...pay, amount: v })} placeholder="0" /></Field>
           <Field label={t("method")}><MethodSelect value={pay.method} onChange={(v) => setPay({ ...pay, method: v })} /></Field>
           <Field label={t("receivedBy")}><OwnerSelect value={pay.handler} onChange={(v) => setPay((p) => ({ ...p, handler: v }))} /></Field>
-          {totals.ok && <Button variant="outline" className="mt-auto h-12" onClick={() => setPay({ ...pay, amount: String(totals.total) })}>{t("fullPayment")}</Button>}
+          {totals.ok && <Button variant="outline" className="mt-auto h-10" onClick={() => setPay({ ...pay, amount: String(totals.total) })}>{t("fullPayment")}</Button>}
         </div>
         {h.customer && totals.ok && (
           <div className="mt-3 text-lg">{t("balanceAfter")}: <span className="num font-bold">{fmt(Math.abs(newBalance))}</span> <BalanceBadge balance={newBalance} kind="customer" /></div>
