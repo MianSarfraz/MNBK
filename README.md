@@ -18,7 +18,7 @@ Stack: Next.js 15 (App Router, React 19, TypeScript), Supabase (Postgres + auth 
 | `/stock`, `/stock/opening`, `/production` | Stock summary per brick type; opening stock; production register by kiln firing. |
 | `/sales-reports` | Sales by day / week / month / year, by customer and type; production by firing; customer balances. |
 
-Brick types: Awal, Awal Machine, Doum, Tirak, 9t, 9t Doum, 9t Tirak — each with its own stock
+Brick types (each with its own stock): Awal, Awal Barshi, Special, Awal Machine, Doum, Tirak, 9t Awal, 9t Doum, 9t Tirak. Roray (broken bricks — Trali Roray, Rehra Roray, Rehra 9T Roray) are sale-only, priced per trolley/rehra load, and never counted in stock.
 (remaining = opening + production − sold ± adjustments).
 
 **Kiln work, money & settings (secondary):** `/weekly` (patheer), `/rehra`, `/nakasi`, `/people/[kind]`, `/party/[id]`,

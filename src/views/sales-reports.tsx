@@ -6,8 +6,9 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import { fmt, fmtDate, fmtMonth, useT, type Key } from "@/lib/i18n";
-import { addDays, periodKey, summarize, type Period } from "@/lib/kiln-math";
-import { customerId, fetchAll, today, useCustomerAccounts, useQualities, useSaleLines } from "@/lib/data";
+import { addDays, isLoad, periodKey, summarize, type Period } from "@/lib/kiln-math";
+import { customerId, fetchAll, today, useBrickTypes, useCustomerAccounts, useQualities, useRoray, useSaleLines } from "@/lib/data";
+import { TypeOptions } from "@/views/sales-register";
 import { downloadExcel, type Cell as XCell } from "@/lib/export";
 import { Button } from "@/components/ui/button";
 import { PageHeader, PrintHeader, Stat } from "@/components/kit";
@@ -26,6 +27,8 @@ export default function SalesReports() {
   const [fType, setFType] = useState("");
   const accounts = useCustomerAccounts();
   const qualities = useQualities();
+  const brickTypes = useBrickTypes();
+  const roray = useRoray();
   const linesQ = useSaleLines(range.from, range.to);
   const prodQ = useQuery({
     queryKey: ["production", range.from, range.to],
@@ -38,13 +41,16 @@ export default function SalesReports() {
 
   const lines = useMemo(() => (linesQ.data ?? [])
     .filter((l) => (!fCustomer || l.customer_id === fCustomer) && (!fType || l.quality_id === fType))
-    .map((l) => ({ ...l, quantity: Number(l.quantity), amount: Number(l.amount) })), [linesQ.data, fCustomer, fType]);
+    // "quantity" = bricks only; roray loads are counted separately (a load is not a brick).
+    .map((l) => ({ ...l, quantity: isLoad(l.unit) ? 0 : Number(l.quantity), loads: isLoad(l.unit) ? Number(l.quantity) : 0, amount: Number(l.amount) })), [linesQ.data, fCustomer, fType]);
   const prod = useMemo(() => (prodQ.data ?? []).filter((p) => !fType || p.quality_id === fType).map((p) => ({ ...p, quantity: Number(p.count), amount: 0 })), [prodQ.data, fType]);
   const totalQty = lines.reduce((s, l) => s + l.quantity, 0);
   const totalAmt = lines.reduce((s, l) => s + l.amount, 0);
+  const totalLoads = lines.reduce((s, l) => s + l.loads, 0);
   const byPeriod = summarize(lines, (l) => periodKey(l.entry_date!, period)).sort((a, b) => b.key.localeCompare(a.key));
   const byCustomer = summarize(lines, (l) => custName(l.customer_id)).sort((a, b) => b.amount - a.amount);
-  const byType = summarize(lines, (l) => typeName(l.quality_id)).sort((a, b) => b.quantity - a.quantity);
+  // By type: brick types in bricks, roray in loads (labelled so the two are never mixed up).
+  const byType = summarize(lines.map((l) => ({ ...l, quantity: l.quantity + l.loads })), (l) => typeName(l.quality_id) + (l.loads ? ` (${t("loads")})` : "")).sort((a, b) => b.quantity - a.quantity);
   const prodByPeriod = summarize(prod, (p) => periodKey(p.entry_date, period)).sort((a, b) => b.key.localeCompare(a.key));
   const prodByType = summarize(prod, (p) => typeName(p.quality_id)).sort((a, b) => b.quantity - a.quantity);
   const prodByFiring = summarize(prod, (p) => p.firing_ref || t("noFiringRef"));
@@ -80,7 +86,7 @@ export default function SalesReports() {
           <option value="">{t("allCustomers")}</option>{(accounts.data ?? []).map((c) => <option key={c.party_id} value={c.party_id!}>{c.name}</option>)}
         </select>
         <select className="h-9 rounded-md border bg-card px-2" value={fType} onChange={(e) => setFType(e.target.value)} aria-label={t("brickType")}>
-          <option value="">{t("allTypes")}</option>{(qualities.data ?? []).filter((q) => q.kind === "nakasi" && q.is_active).map((q) => <option key={q.id} value={q.id}>{q.name_en}</option>)}
+          <option value="">{t("allTypes")}</option><TypeOptions types={brickTypes.data ?? []} roray={roray.data ?? []} />
         </select>
         <div className="inline-flex rounded-lg border bg-card p-0.5">
           {PERIODS.map((p) => <button key={p} onClick={() => setPeriod(p)} className={`rounded-md px-2.5 py-1 ${period === p ? "bg-primary text-primary-foreground" : ""}`}>{t(`per_${p}` as Key)}</button>)}
@@ -96,8 +102,9 @@ export default function SalesReports() {
       </div>
 
       {tab === "sales" && (<>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
           <Stat label={t("bricksSold")} value={totalQty} />
+          <Stat label={t("loadsSold")} value={totalLoads} />
           <Stat label={t("salesTotal")} value={totalAmt} money />
           <Stat label={t("salesCount")} value={lines.length} />
         </div>

@@ -203,8 +203,20 @@ export function statement(opening: number, items: LedgerItem[], from?: string, t
 }
 
 // ---------- Sales invoices ----------
-export type SaleLine = { quantity: number; rate_per_1000: number };
-export type InvoiceTotal = { gross: number; discount: number; delivery: number; total: number; bricks: number };
+/** "thousand" = brick types, rate per 1000 bricks; "load" = roray (broken bricks), rate per trolley/rehra load. */
+export type Unit = "thousand" | "load";
+export type SaleLine = { quantity: number; rate_per_1000: number; unit?: Unit | string | null };
+export type InvoiceTotal = { gross: number; discount: number; delivery: number; total: number; bricks: number; loads: number };
+
+export const isLoad = (unit: string | null | undefined) => unit === "load";
+
+/** One sale line's amount. Bricks: qty × rate / 1000 rounded half-up; roray: loads × rate per load. Mirrors SQL line_amount(). */
+export function lineAmount(quantity: number, rate: number, unit?: string | null): number {
+  if (!isLoad(unit)) return amountFor(quantity, rate);
+  if (!Number.isInteger(quantity) || !Number.isInteger(rate)) throw new Error("count and rate must be integers");
+  if (quantity < 0 || rate < 0) throw new Error("negative values not allowed");
+  return quantity * rate;
+}
 
 /** total = Σ(line amounts, each rounded half-up) − discount + delivery. Mirrors SQL view public.sale_totals. */
 export function invoiceTotal(lines: SaleLine[], discount = 0, delivery = 0): InvoiceTotal {
@@ -213,14 +225,16 @@ export function invoiceTotal(lines: SaleLine[], discount = 0, delivery = 0): Inv
   }
   let gross = 0;
   let bricks = 0;
+  let loads = 0;
   for (const l of lines) {
     if (!Number.isInteger(l.quantity) || l.quantity <= 0) throw new Error("quantity must be a positive whole number");
-    gross += amountFor(l.quantity, l.rate_per_1000);
-    bricks += l.quantity;
+    gross += lineAmount(l.quantity, l.rate_per_1000, l.unit);
+    if (isLoad(l.unit)) loads += l.quantity;
+    else bricks += l.quantity;
   }
   const total = gross - discount + delivery;
   if (total < 0) throw new Error("discount is larger than the invoice");
-  return { gross, discount, delivery, total, bricks };
+  return { gross, discount, delivery, total, bricks, loads };
 }
 
 // ---------- Stock ----------

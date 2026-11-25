@@ -19,7 +19,8 @@ const DB: Record<string, Record<string, unknown>[]> = {
   weeks: [{ id: W1, season_id: S1, week_number: 1, start_date: "2026-11-12", end_date: "2026-11-18", created_by: U1, created_at: base.created_at }],
   qualities: [
     { ...base, id: QA, name_en: "Awal", name_ur: "Awal", kind: "nakasi", category: "normal", is_active: true, sort_order: 1, stock_quality_id: null },
-    { ...base, id: QS, name_en: "Awal", name_ur: "Awal", kind: "sale", category: "normal", is_active: true, sort_order: 2, stock_quality_id: QA },
+    { ...base, id: QS, name_en: "Awal", name_ur: "Awal", kind: "sale", category: "normal", is_active: false, sort_order: 2, stock_quality_id: QA, unit: "thousand" },
+    { ...base, id: "q-roray", name_en: "Trali Roray", name_ur: "Trali Roray", kind: "sale", category: "other", is_active: true, sort_order: 201, stock_quality_id: null, unit: "load" },
   ],
   expense_categories: [{ ...base, id: "cat-1", name_en: "Diesel", name_ur: "Diesel", is_active: true, sort_order: 1 }],
   parties: [party(P1, "patheer", "Akram"), party(C1, "customer", "Bashir", { opening_balance: -1000 }), party(E1, "employee", "Munshi", { monthly_salary: 30000 }), party(N1, "nakasi", "Nadeem"), party(R1, "rehra", "Rafiq")],
@@ -260,13 +261,27 @@ describe("sales register", () => {
     fireEvent.change(screen.getAllByLabelText("Brick type").at(-1)!, { target: { value: QA } });
     const qty = screen.getAllByLabelText("Quantity").at(-1)!;
     fireEvent.change(qty, { target: { value: "70001" } }); // stock is 70,000
-    fireEvent.change(screen.getAllByLabelText("Rate / 1,000").at(-1)!, { target: { value: "18000" } });
+    fireEvent.change(screen.getAllByLabelText("Rate (/1000 or /load)").at(-1)!, { target: { value: "18000" } });
     const add = screen.getAllByText("Add").at(-1)!;
     expect(add).toBeDisabled();
     expect(qty).toHaveAttribute("title", expect.stringMatching(/Not enough stock.*70,000/));
     fireEvent.change(qty, { target: { value: "5000" } });
     expect(screen.getAllByText("90,000").length).toBeGreaterThan(0); // 5,000 × 18,000 / 1,000
     expect(add).not.toBeDisabled();
+    spy.mockRestore();
+  });
+  it("roray are listed apart from brick types, priced per load, with no stock limit", async () => {
+    const { spy } = await mount("/sales");
+    const selects = await screen.findAllByLabelText("Customer", {}, { timeout: 4000 });
+    await waitFor(() => expect((screen.getAllByLabelText("Brick type").at(-1) as HTMLSelectElement).innerHTML).toContain("Trali Roray"), { timeout: 4000 });
+    const typeSel = screen.getAllByLabelText("Brick type").at(-1) as HTMLSelectElement;
+    expect(typeSel.querySelector('optgroup[label="Roray — per load"]')?.textContent).toBe("Trali Roray");
+    fireEvent.change(selects.at(-1)!, { target: { value: C1 } });
+    fireEvent.change(typeSel, { target: { value: "q-roray" } });
+    fireEvent.change(screen.getAllByLabelText("Quantity").at(-1)!, { target: { value: "3" } });
+    fireEvent.change(screen.getAllByLabelText("Rate (/1000 or /load)").at(-1)!, { target: { value: "6500" } });
+    expect(screen.getAllByText("19,500").length).toBeGreaterThan(0); // 3 loads × 6,500
+    expect(screen.getAllByText("Add").at(-1)!).not.toBeDisabled();
     spy.mockRestore();
   });
 });

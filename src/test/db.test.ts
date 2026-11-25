@@ -7,6 +7,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 const SETUP = fs.readFileSync(path.resolve(__dirname, "../../supabase/setup.sql"), "utf8");
 const U = "11111111-1111-1111-1111-111111111111";
+const NINE = ["Awal", "Awal Barshi", "Special", "Awal Machine", "Doum", "Tirak", "9t Awal", "9t Doum", "9t Tirak"];
 let db: PGlite;
 const q = async <T = Record<string, unknown>>(sql: string, params: unknown[] = []) => (await db.query<T>(sql, params)).rows;
 const one = async <T = Record<string, unknown>>(sql: string, params: unknown[] = []) => (await q<T>(sql, params))[0]!;
@@ -38,9 +39,15 @@ beforeAll(async () => {
 }, 60_000);
 
 describe("setup", () => {
-  it("has exactly the seven brick types, in order", async () => {
+  it("has exactly the nine stock brick types, in order", async () => {
     const rows = await q<{ name_en: string }>(`select name_en from qualities where kind='nakasi' and is_active order by sort_order`);
-    expect(rows.map((r) => r.name_en)).toEqual(["Awal", "Awal Machine", "Doum", "Tirak", "9t", "9t Doum", "9t Tirak"]);
+    expect(rows.map((r) => r.name_en)).toEqual(NINE);
+    const stockRows = await q<{ name_en: string }>(`select name_en from finished_stock where is_active order by sort_order`);
+    expect(stockRows.map((r) => r.name_en)).toEqual(NINE);
+  });
+  it("has the three roray sold by load, outside stock", async () => {
+    const rows = await q<{ name_en: string; unit: string }>(`select name_en, unit from qualities where kind='sale' and is_active order by sort_order`);
+    expect(rows).toEqual([{ name_en: "Trali Roray", unit: "load" }, { name_en: "Rehra Roray", unit: "load" }, { name_en: "Rehra 9T Roray", unit: "load" }]);
   });
   it("has the six starting customers, Nakad Bikri as cash", async () => {
     const rows = await q<{ name: string; is_cash: boolean }>(`select name, is_cash from parties where kind='customer' order by ref_no`);
@@ -84,7 +91,7 @@ describe("the eight scenarios", () => {
     await expect(q(`insert into parties (kind, name, created_by) values ('customer', ' haji aslam ', $1)`, [U])).rejects.toThrow(/unique|duplicate/i);
   });
   it("7 — each brick type keeps its own stock", async () => {
-    const names = ["Awal Machine", "Tirak", "9t", "9t Doum", "9t Tirak"];
+    const names = ["Awal Barshi", "Special", "Awal Machine", "Tirak", "9t Awal", "9t Doum", "9t Tirak"];
     for (const [i, n] of names.entries()) {
       await q(`insert into stock_adjustments (stock, quality_id, entry_date, delta, reason, is_opening) values ('finished', $1, '2026-11-01', $2, 'Opening stock', true)`, [await type(n), 10000 + i * 1000]);
       await sell("Rana Shani", n, 1000 + i * 100, 16000);
@@ -104,6 +111,27 @@ describe("the eight scenarios", () => {
     await q(`update sales set deleted_at = now() where id=$1`, [sid]);
     expect((await stock("Awal")).balance).toBe(60000);
     expect((await account("Nakad Bikri")).outstanding).toBe(0);
+  });
+  it("roray are sold by the load: amount = loads × rate, stock untouched, Nakad still auto-paid", async () => {
+    const roray = (n: string) => one<{ id: string }>(`select id from qualities where kind='sale' and name_en=$1`, [n]).then((r) => r.id);
+    const before = await q(`select quality_id, balance from finished_stock order by quality_id`);
+    await q(`insert into parties (kind, name, created_by) values ('customer', 'Roray Buyer', $1)`, [U]);
+    const items = JSON.stringify([{ quality_id: await roray("Trali Roray"), quantity: 2, rate_per_1000: 6500 }, { quality_id: await type("Awal"), quantity: 1000, rate_per_1000: 18000 }]);
+    const sid = (await one<{ id: string }>(`select public.create_sale('2026-11-21', $1, null, null, 0, 0, null, $2::jsonb, 0, 'cash', null) as id`, [await customer("Roray Buyer"), items])).id;
+    expect(await one(`select gross, bricks, loads from sale_totals where sale_id=$1`, [sid])).toEqual({ gross: 13000 + 18000, bricks: 1000, loads: 2 });
+    expect(await account("Roray Buyer")).toMatchObject({ purchases: 31000, bricks: 1000, outstanding: 31000 });
+    const line = await one(`select amount, unit from sale_lines where sale_id=$1 and unit='load'`, [sid]);
+    expect(line).toEqual({ amount: 13000, unit: "load" });
+    expect((await stock("Awal")).balance).toBe(59000);
+    await q(`update sales set deleted_at=now() where id=$1`, [sid]);
+    expect(await q(`select quality_id, balance from finished_stock order by quality_id`)).toEqual(before);
+    const nk = JSON.stringify([{ quality_id: await roray("Rehra Roray"), quantity: 3, rate_per_1000: 1500 }]);
+    const nid = (await one<{ id: string }>(`select public.create_sale('2026-11-21', $1, null, null, 0, 0, null, $2::jsonb, 0, 'cash', null) as id`, [await customer("Nakad Bikri"), nk])).id;
+    expect(await one(`select amount from transactions where sale_id=$1 and category='cash_sale' and deleted_at is null`, [nid])).toEqual({ amount: 4500 });
+    await q(`update sales set deleted_at=now() where id=$1`, [nid]);
+  });
+  it("a roray can't be made stock-tracked", async () => {
+    await expect(q(`update qualities set kind='nakasi' where name_en='Trali Roray'`)).rejects.toThrow(/qualities_load_is_sale_only/);
   });
   it("brief's example: 10,000 Awal @18,000 + 5,000 Doum @15,000 = 255,000; paid 150,000 → owes 105,000", async () => {
     await q(`insert into parties (kind, name, created_by) values ('customer', 'Example Customer', $1)`, [U]);
@@ -137,17 +165,17 @@ describe("setup.sql is safe to re-run", () => {
 
 describe("brick types are owner-editable", () => {
   it("a brick type an owner adds shows in stock and stays on after setup.sql is re-run", async () => {
-    await q(`insert into qualities (name_en, name_ur, kind, category, sort_order, created_by) values ('Special', 'Special', 'nakasi', 'special', 8, $1)`, [U]);
-    await q(`insert into stock_adjustments (stock, quality_id, entry_date, delta, reason, is_opening) values ('finished', $1, '2026-11-01', 3000, 'Opening stock', true)`, [await type("Special")]);
+    await q(`insert into qualities (name_en, name_ur, kind, category, sort_order, created_by) values ('Pakki', 'Pakki', 'nakasi', 'special', 10, $1)`, [U]);
+    await q(`insert into stock_adjustments (stock, quality_id, entry_date, delta, reason, is_opening) values ('finished', $1, '2026-11-01', 3000, 'Opening stock', true)`, [await type("Pakki")]);
     await db.exec(`reset role`);
     await db.exec(SETUP);
     await db.exec(`set role authenticated`);
-    expect(await stock("Special")).toMatchObject({ opening: 3000, balance: 3000 });
+    expect(await stock("Pakki")).toMatchObject({ opening: 3000, balance: 3000 });
     const active = await q<{ name_en: string }>(`select name_en from qualities where kind='nakasi' and is_active order by sort_order`);
-    expect(active.map((r) => r.name_en)).toContain("Special");
+    expect(active.map((r) => r.name_en)).toEqual([...NINE, "Pakki"]);
   }, 60_000);
   it("refuses a second brick type with the same name", async () => {
-    await expect(q(`insert into qualities (name_en, name_ur, kind, created_by) values (' special ', 'x', 'nakasi', $1)`, [U])).rejects.toThrow(/qualities_unique_name/);
+    await expect(q(`insert into qualities (name_en, name_ur, kind, created_by) values (' pakki ', 'x', 'nakasi', $1)`, [U])).rejects.toThrow(/qualities_unique_name/);
   });
 });
 
@@ -160,15 +188,20 @@ describe("upgrading a project that ran the older setup (migrations up to 0006)",
     const c = (await old.query<{ id: string }>(`insert into parties (kind, name, created_by) values ('customer', 'Old Customer', '${U}') returning id`)).rows[0]!.id;
     const saleAwal = (await old.query<{ id: string }>(`select id from qualities where kind='sale' and name_en='Awal'`)).rows[0]!.id;
     await old.query(`select public.create_sale('2026-11-15', $1, null, null, 0, 0, null, $2::jsonb, 0, 'cash', null)`, [c, JSON.stringify([{ quality_id: saleAwal, quantity: 4000, rate_per_1000: 18000 }])]);
+    const old9t = (await old.query<{ id: string }>(`select id from qualities where kind='sale' and name_en='9T Awal'`)).rows[0]!.id;
+    const oldBrshi = (await old.query<{ id: string }>(`select id from qualities where kind='sale' and name_en='Awal Brshi'`)).rows[0]!.id;
+    await old.query(`select public.create_sale('2026-11-15', $1, null, null, 0, 0, null, $2::jsonb, 0, 'cash', null)`, [c, JSON.stringify([{ quality_id: old9t, quantity: 500, rate_per_1000: 10000 }, { quality_id: oldBrshi, quantity: 200, rate_per_1000: 10000 }])]);
     await old.exec(`reset role`);
     await old.exec(SETUP);
     await old.exec(`set role authenticated`);
     const s = (await old.query<{ sold: number; balance: number }>(`select sold, balance from finished_stock where name_en='Awal'`)).rows[0]!;
     expect(s).toEqual({ sold: 4000, balance: -4000 });
     const types = (await old.query<{ n: number }>(`select count(*)::int n from qualities where kind='nakasi' and is_active`)).rows[0]!.n;
-    expect(types).toBe(7);
+    expect(types).toBe(9);
+    const sold = (await old.query<{ name_en: string; sold: number }>(`select name_en, sold from finished_stock where name_en in ('9t Awal', 'Awal Barshi') order by name_en`)).rows;
+    expect(sold).toEqual([{ name_en: "9t Awal", sold: 500 }, { name_en: "Awal Barshi", sold: 200 }]);
     const acct = (await old.query<{ outstanding: number }>(`select outstanding from customer_accounts where name='Old Customer'`)).rows[0]!;
-    expect(acct.outstanding).toBe(72000);
+    expect(acct.outstanding).toBe(72000 + 7000);
   }, 60_000);
 
   it("turns types an owner added as 'sale' (missing from stock) into brick types, and keeps them on", async () => {
@@ -182,7 +215,7 @@ describe("upgrading a project that ran the older setup (migrations up to 0006)",
     await old.exec(SETUP);
     await old.exec(SETUP);
     const rows = (await old.query<{ name_en: string }>(`select name_en from finished_stock where is_active order by sort_order`)).rows.map((r) => r.name_en);
-    expect(rows).toEqual(["Awal", "Awal Machine", "Doum", "Tirak", "9t", "9t Doum", "9t Tirak", "Pakki", "Khingar"]);
+    expect(rows).toEqual([...NINE, "Pakki", "Khingar"]);
     const doum = (await old.query<{ linked: boolean }>(`select stock_quality_id is not null linked from qualities where kind='sale' and name_en='Doum' and created_by='${U}'`)).rows[0]!;
     expect(doum.linked).toBe(true);
     // A type switched off after the repair stays off on later re-runs.

@@ -4,7 +4,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useT } from "@/lib/i18n";
-import { useQualities } from "@/lib/data";
+import { useState } from "react";
+import { addRoray, useQualities } from "@/lib/data";
 import { AddBrickType } from "@/components/AddBrickType";
 import { PageHeader, Section } from "@/components/kit";
 import { Button } from "@/components/ui/button";
@@ -20,7 +21,17 @@ export default function QualitiesPage() {
   const q = useQualities();
   const all = q.data ?? [];
   const types = all.filter((x) => x.kind === "nakasi").sort((a, b) => a.sort_order - b.sort_order);
-  const retired = all.filter((x) => x.kind === "sale");
+  const roray = all.filter((x) => x.kind === "sale" && x.unit === "load").sort((a, b) => a.sort_order - b.sort_order);
+  const retired = all.filter((x) => x.kind === "sale" && x.unit !== "load");
+  const [rName, setRName] = useState("");
+  async function addR(e: React.FormEvent) {
+    e.preventDefault();
+    const err = await addRoray(rName, all).catch((x: Error) => x.message);
+    if (err) return void toast.error(err);
+    toast.success(t("rorayAdded"));
+    setRName("");
+    qc.invalidateQueries({ queryKey: ["qualities"] });
+  }
   const catLabel: Record<Cat, string> = { normal: t("catNormal"), nine_t: t("cat9t"), special: t("catSpecial"), other: t("catOther") };
 
   async function update(id: string, patch: Patch) {
@@ -64,6 +75,24 @@ export default function QualitiesPage() {
           </div>
         ))}
       </div>
+
+      <Section title={t("rorayTitle")}>
+        <p className="mb-2 text-sm text-muted-foreground">{t("rorayHelp")}</p>
+        <form onSubmit={addR} className="mb-2 flex flex-wrap items-center gap-2">
+          <Input className="h-10 min-w-40 flex-1" placeholder={t("newRorayName")} value={rName} onChange={(e) => setRName(e.target.value)} aria-label={t("addRoray")} />
+          <Button type="submit" disabled={!rName.trim()}>+ {t("addRoray")}</Button>
+        </form>
+        <div className="space-y-2">
+          {roray.map((x) => (
+            <div key={x.id} className={`flex flex-wrap items-center gap-2 rounded-lg border bg-card p-2 ${x.is_active ? "" : "opacity-60"}`}>
+              <Input key={x.name_en} className="h-10 min-w-32 flex-1" defaultValue={x.name_en}
+                onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== x.name_en) update(x.id, { name_en: v, name_ur: v }); }} />
+              <span className="text-xs text-muted-foreground">{t("perLoad")}</span>
+              <Switch checked={x.is_active} onCheckedChange={(v) => update(x.id, { is_active: v })} aria-label={x.is_active ? t("active") : t("inactive")} />
+            </div>
+          ))}
+        </div>
+      </Section>
 
       {retired.length > 0 && (
         <Section title={t("kindSale")}>

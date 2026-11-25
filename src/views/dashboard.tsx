@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Bar, BarChart, CartesianGrid, Cell as BarCell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { fmt, fmtDate, fmtMonth, useT } from "@/lib/i18n";
-import { addDays, LOW_STOCK, monthStart, stockRow, summarize, weekStart } from "@/lib/kiln-math";
+import { addDays, isLoad, LOW_STOCK, monthStart, stockRow, summarize, weekStart } from "@/lib/kiln-math";
 import { today, useCustomerAccounts, useLedgers, useSaleLines, useStock } from "@/lib/data";
 import { Section, Stat } from "@/components/kit";
 import { Sheet } from "@/components/sheet";
@@ -21,7 +21,9 @@ export default function Dashboard() {
 
   const types = (stock.data ?? []).filter((s) => s.is_active || Number(s.balance) !== 0).sort((a, b) => Number(a.sort_order) - Number(b.sort_order));
   const sumStock = (k: "opening" | "produced" | "sold" | "balance") => types.reduce((s, r) => s + Number(r[k]), 0);
-  const ls = (lines.data ?? []).map((l) => ({ ...l, quantity: Number(l.quantity), amount: Number(l.amount) }));
+  // quantity = bricks only; roray are sold by the load and counted separately.
+  const ls = (lines.data ?? []).map((l) => ({ ...l, quantity: isLoad(l.unit) ? 0 : Number(l.quantity), loads: isLoad(l.unit) ? Number(l.quantity) : 0, amount: Number(l.amount) }));
+  const qtySub = (xs: typeof ls) => { const b = xs.reduce((s, l) => s + l.quantity, 0), n = xs.reduce((s, l) => s + l.loads, 0); return `${fmt(b)} ${t("bricks")}${n ? ` + ${fmt(n)} ${t("loads")}` : ""}`; };
   const todayLines = ls.filter((l) => l.entry_date === d);
   const monthLines = ls.filter((l) => (l.entry_date ?? "") >= monthStart(d));
   const accts = accounts.data ?? [];
@@ -48,8 +50,8 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
         <Stat label={t("remainingStock")} value={sumStock("balance")} sub={`${fmt(sumStock("opening"))} ${t("openingShort")} + ${fmt(sumStock("produced"))} ${t("producedShort")} − ${fmt(sumStock("sold"))} ${t("soldShort")}`} />
-        <Stat label={t("salesToday")} value={todayLines.reduce((s, l) => s + l.amount, 0)} money sub={`${fmt(todayLines.reduce((s, l) => s + l.quantity, 0))} ${t("bricks")}`} />
-        <Stat label={t("salesThisMonth")} value={monthLines.reduce((s, l) => s + l.amount, 0)} money sub={`${fmt(monthLines.reduce((s, l) => s + l.quantity, 0))} ${t("bricks")}`} />
+        <Stat label={t("salesToday")} value={todayLines.reduce((s, l) => s + l.amount, 0)} money sub={qtySub(todayLines)} />
+        <Stat label={t("salesThisMonth")} value={monthLines.reduce((s, l) => s + l.amount, 0)} money sub={qtySub(monthLines)} />
         <Stat label={t("totalOutstanding")} value={outstanding} money tone="bad" />
         <Stat label={t("totalSalesAll")} value={totalSales} money />
         <Stat label={t("cashReceivedAll")} value={totalPaid} money tone="good" />

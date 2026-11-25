@@ -166,6 +166,22 @@ export function useBrickTypes() {
   return { ...q, data: (q.data ?? []).filter((x) => x.kind === "nakasi" && x.is_active).sort((a, b) => a.sort_order - b.sort_order) };
 }
 
+/** Sale-only items sold by the load (roray / broken bricks by trolley or rehra). Never stock-tracked. */
+export function useRoray() {
+  const q = useQualities();
+  return { ...q, data: (q.data ?? []).filter((x) => x.kind === "sale" && x.unit === "load" && x.is_active).sort((a, b) => a.sort_order - b.sort_order) };
+}
+
+/** Add a sale-only item priced per load. Returns an error message, or null when saved. */
+export async function addRoray(name: string, existing: (Quality & { unit?: string })[]): Promise<string | null> {
+  const n = name.trim().replace(/\s+/g, " ");
+  if (!n) return "Type a name";
+  if (existing.some((q) => q.kind === "sale" && !q.deleted_at && q.name_en.trim().toLowerCase() === n.toLowerCase())) return `"${n}" already exists`;
+  const sort_order = existing.filter((q) => q.unit === "load").reduce((m, q) => Math.max(m, q.sort_order), 200) + 1;
+  const { error } = await supabase.from("qualities").insert({ name_en: n, name_ur: n, kind: "sale", category: "other", unit: "load", is_active: true, sort_order, created_by: await myId() });
+  return error ? error.message : null;
+}
+
 type Quality = { id: string; name_en: string; kind: string; sort_order: number; deleted_at?: string | null };
 type BrickCategory = "normal" | "nine_t" | "special" | "other";
 

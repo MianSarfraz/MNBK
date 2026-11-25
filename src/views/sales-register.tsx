@@ -7,8 +7,8 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import { fmt, fmtDate, fmtMonth, useT } from "@/lib/i18n";
-import { addDays, amountFor, canSell, monthEnd, monthStart, parseWhole } from "@/lib/kiln-math";
-import { errMsg, fetchAll, myId, saleId, today, useBrickTypes, useCustomerAccounts, useSaleLines, useStock } from "@/lib/data";
+import { addDays, canSell, isLoad, lineAmount, monthEnd, monthStart, parseWhole } from "@/lib/kiln-math";
+import { errMsg, fetchAll, myId, saleId, today, useBrickTypes, useCustomerAccounts, useRoray, useSaleLines, useStock } from "@/lib/data";
 import { downloadExcel } from "@/lib/export";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -29,6 +29,7 @@ export default function SalesRegister() {
   const to = allTime ? "2999-12-31" : monthEnd(month);
   const linesQ = useSaleLines(from, to);
   const types = useBrickTypes();
+  const roray = useRoray();
   const stock = useStock();
   const accounts = useCustomerAccounts();
   const receiptsQ = useQuery({
@@ -40,7 +41,9 @@ export default function SalesRegister() {
 
   const customers = accounts.data ?? [];
   const custName = (id: string | null) => customers.find((c) => c.party_id === id)?.name ?? "—";
-  const typeName = (id: string | null) => (types.data ?? []).find((q) => q.id === id)?.name_en ?? "(old) " + (id ?? "").slice(0, 4);
+  const items = [...(types.data ?? []), ...(roray.data ?? [])];
+  const typeName = (id: string | null) => items.find((q) => q.id === id)?.name_en ?? "(old) " + (id ?? "").slice(0, 4);
+  const loadItem = (id: string | null) => (roray.data ?? []).some((q) => q.id === id);
   const remaining = (qid: string) => Number((stock.data ?? []).find((s) => s.quality_id === qid)?.balance ?? 0);
   const lines = useMemo(() => (linesQ.data ?? []).filter((l) => (!fCustomer || l.customer_id === fCustomer) && (!fType || l.quality_id === fType)), [linesQ.data, fCustomer, fType]);
   const paidAtSale = useMemo(() => {
@@ -48,7 +51,8 @@ export default function SalesRegister() {
     for (const r of receiptsQ.data ?? []) if (r.sale_id) m.set(r.sale_id, (m.get(r.sale_id) ?? 0) + (r.direction === "in" ? 1 : -1) * Number(r.amount));
     return m;
   }, [receiptsQ.data]);
-  const totalQty = lines.reduce((s, l) => s + Number(l.quantity), 0);
+  const totalQty = lines.reduce((s, l) => s + (isLoad(l.unit) ? 0 : Number(l.quantity)), 0);
+  const totalLoads = lines.reduce((s, l) => s + (isLoad(l.unit) ? Number(l.quantity) : 0), 0);
   const totalAmt = lines.reduce((s, l) => s + Number(l.amount), 0);
   const received = (receiptsQ.data ?? []).reduce((s, r) => s + (r.direction === "in" ? 1 : -1) * Number(r.amount), 0);
   const outstanding = customers.reduce((s, c) => s + Math.max(0, Number(c.outstanding)), 0);
@@ -62,8 +66,9 @@ export default function SalesRegister() {
   async function updateItem(l: Line, patch: { quantity?: number; rate_per_1000?: number; quality_id?: string }) {
     // Stock check when more bricks of a type would leave the yard.
     const qid = patch.quality_id ?? l.quality_id!;
+    if (loadItem(qid) !== isLoad(l.unit)) return void toast.error(t("rorayHelp"));
     const extra = (patch.quantity ?? Number(l.quantity)) - (qid === l.quality_id ? Number(l.quantity) : 0);
-    if (extra > 0 && !canSell(remaining(qid), extra)) return void toast.error(`${t("notEnoughStock")}: ${typeName(qid)} — ${t("available")} ${fmt(remaining(qid))}`);
+    if (!loadItem(qid) && extra > 0 && !canSell(remaining(qid), extra)) return void toast.error(`${t("notEnoughStock")}: ${typeName(qid)} — ${t("available")} ${fmt(remaining(qid))}`);
     const { error } = await supabase.from("sale_items").update(patch).eq("id", l.item_id!);
     if (error) toast.error(error.message);
     refresh();
@@ -87,10 +92,10 @@ export default function SalesRegister() {
 
   function exportXls() {
     downloadExcel(`sales-${allTime ? "all" : month.slice(0, 7)}`, [{ name: "Sales Register", rows: [
-      ["Sale ID", "Date", "Customer", "Brick type", "Quantity", "Rate / 1000", "Amount", "Paid at sale", "Vehicle", "Driver", "Notes"],
-      ...lines.map((l) => [saleId(l.invoice_no), l.entry_date, custName(l.customer_id), typeName(l.quality_id), Number(l.quantity), Number(l.rate_per_1000), Number(l.amount),
+      ["Sale ID", "Date", "Customer", "Brick type", "Quantity", "Unit", "Rate", "Amount", "Paid at sale", "Vehicle", "Driver", "Notes"],
+      ...lines.map((l) => [saleId(l.invoice_no), l.entry_date, custName(l.customer_id), typeName(l.quality_id), Number(l.quantity), isLoad(l.unit) ? "per load" : "per 1000", Number(l.rate_per_1000), Number(l.amount),
         paidAtSale.get(l.sale_id!) ?? 0, l.vehicle_no ?? "", l.driver_name ?? "", l.note ?? ""]),
-      [], ["", "", "", "Total", totalQty, "", totalAmt],
+      [], ["", "", "", "Total bricks", totalQty, "", "", totalAmt], ["", "", "", "Roray loads", totalLoads],
     ] }]);
   }
 
@@ -115,12 +120,12 @@ export default function SalesRegister() {
           <option value="">{t("allCustomers")}</option>{customers.map((c) => <option key={c.party_id} value={c.party_id!}>{c.name}</option>)}
         </select>
         <select className="h-9 rounded-md border bg-card px-2 text-sm" value={fType} onChange={(e) => setFType(e.target.value)} aria-label={t("brickType")}>
-          <option value="">{t("allTypes")}</option>{(types.data ?? []).map((q) => <option key={q.id} value={q.id}>{q.name_en}</option>)}
+          <option value="">{t("allTypes")}</option><TypeOptions types={types.data ?? []} roray={roray.data ?? []} />
         </select>
       </div>
 
       <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-        <Stat label={t("bricksSold")} value={totalQty} />
+        <Stat label={t("bricksSold")} value={totalQty} sub={totalLoads ? `+ ${fmt(totalLoads)} ${t("loads")} roray` : undefined} />
         <Stat label={t("salesTotal")} value={totalAmt} money />
         <Stat label={t("receivedInPeriod")} value={received} money tone="good" />
         <Stat label={t("totalOutstanding")} value={outstanding} money tone="warn" />
@@ -133,7 +138,7 @@ export default function SalesRegister() {
           <LetterRow cols={12} />
           <tr>
             <th className="rn">#</th><th className="w-20">{t("saleIdCol")}</th><th className="w-36">{t("date")}</th><th>{t("customer")}</th>
-            <th className="w-36">{t("brickType")}</th><th className="n w-28">{t("quantityCol")}</th><th className="n w-28">{t("ratePer1000")}</th>
+            <th className="w-36">{t("brickType")}</th><th className="n w-28">{t("qtyCol")}</th><th className="n w-28">{t("rateCol")}</th>
             <th className="n w-28">{t("amountRs")}</th><th className="n w-24">{t("paidAtSale")}</th><th className="w-28">{t("vehicle")}</th><th className="w-28">{t("driver")}</th><th>{t("note")}</th><th className="no-print w-10" />
           </tr>
         </thead>
@@ -150,12 +155,12 @@ export default function SalesRegister() {
                 <td className="whitespace-nowrap"><Link href={`/customers/${l.customer_id}`} className="hover:underline">{custName(l.customer_id)}</Link>{isCash && <span className="ms-1 rounded bg-success/15 px-1 text-[10px] text-success">{t("cash")}</span>}</td>
                 <td className="c">
                   <select className="cell" value={l.quality_id ?? ""} onChange={(e) => updateItem(l, { quality_id: e.target.value })} aria-label={t("brickType")}>
-                    {!(types.data ?? []).some((q) => q.id === l.quality_id) && <option value={l.quality_id ?? ""}>{typeName(l.quality_id)}</option>}
-                    {(types.data ?? []).map((q) => <option key={q.id} value={q.id}>{q.name_en}</option>)}
+                    {!items.some((q) => q.id === l.quality_id) && <option value={l.quality_id ?? ""}>{typeName(l.quality_id)}</option>}
+                    {isLoad(l.unit) ? <TypeOptions types={[]} roray={roray.data ?? []} /> : <TypeOptions types={types.data ?? []} roray={[]} />}
                   </select>
                 </td>
-                <td className="c"><Cell numeric value={String(Number(l.quantity))} label={`${saleId(l.invoice_no)} ${t("quantityCol")}`} onCommit={(v) => { const n = parseWhole(v); if (n && n > 0) updateItem(l, { quantity: n }); }} /></td>
-                <td className="c"><Cell numeric value={String(Number(l.rate_per_1000))} onCommit={(v) => { const n = parseWhole(v); if (n && n > 0) updateItem(l, { rate_per_1000: n }); }} /></td>
+                <td className="c" title={isLoad(l.unit) ? t("loads") : t("bricks")}><Cell numeric value={String(Number(l.quantity))} label={`${saleId(l.invoice_no)} ${t("quantityCol")}`} onCommit={(v) => { const n = parseWhole(v); if (n && n > 0) updateItem(l, { quantity: n }); }} /></td>
+                <td className="c" title={isLoad(l.unit) ? t("perLoad") : t("per1000")}><Cell numeric value={String(Number(l.rate_per_1000))} onCommit={(v) => { const n = parseWhole(v); if (n && n > 0) updateItem(l, { rate_per_1000: n }); }} /></td>
                 <td className="n num font-semibold">{fmt(Number(l.amount))}</td>
                 <td className="n num ro">{firstOfSale ? fmt(paidAtSale.get(l.sale_id!) ?? 0) : ""}</td>
                 <td className="c">{firstOfSale ? <Cell value={l.vehicle_no ?? ""} placeholder="—" onCommit={(v) => updateSale(l.sale_id!, { vehicle_no: v.trim() || null })} /> : null}</td>
@@ -165,10 +170,10 @@ export default function SalesRegister() {
               </tr>
             );
           })}
-          <NewSaleRow n={lines.length + 1} customers={customers} types={types.data ?? []} remaining={remaining} lastLines={linesQ.data ?? []} onSaved={refresh} />
+          <NewSaleRow n={lines.length + 1} customers={customers} types={types.data ?? []} roray={roray.data ?? []} remaining={remaining} lastLines={linesQ.data ?? []} onSaved={refresh} />
           <tr className="total">
             <td className="rn" /><td colSpan={4}>{t("total")}</td>
-            <td className="n num">{fmt(totalQty)}</td><td /><td className="n num">{fmt(totalAmt)}</td><td colSpan={5} />
+            <td className="n num">{fmt(totalQty)}{totalLoads ? <div className="text-[11px] font-normal">+ {fmt(totalLoads)} {t("loads")}</div> : null}</td><td /><td className="n num">{fmt(totalAmt)}</td><td colSpan={5} />
           </tr>
         </tbody>
       </Sheet>
@@ -178,8 +183,8 @@ export default function SalesRegister() {
 }
 
 /** Blank row at the bottom of the register: one brick type per sale, like the paper register. */
-function NewSaleRow({ n, customers, types, remaining, lastLines, onSaved }: {
-  n: number; customers: Tables<"customer_accounts">[]; types: Tables<"qualities">[]; remaining: (qid: string) => number;
+function NewSaleRow({ n, customers, types, roray, remaining, lastLines, onSaved }: {
+  n: number; customers: Tables<"customer_accounts">[]; types: Tables<"qualities">[]; roray: Tables<"qualities">[]; remaining: (qid: string) => number;
   lastLines: Line[]; onSaved: () => void;
 }) {
   const { t } = useT();
@@ -192,8 +197,9 @@ function NewSaleRow({ n, customers, types, remaining, lastLines, onSaved }: {
   const qty = parseWhole(f.qty) ?? 0;
   const rate = parseWhole(f.rate) ?? 0;
   const cust = customers.find((c) => c.party_id === f.customer);
+  const byLoad = roray.some((q) => q.id === f.type);
   const left = f.type ? remaining(f.type) : 0;
-  const tooMuch = !!f.type && qty > 0 && !canSell(left, qty);
+  const tooMuch = !!f.type && !byLoad && qty > 0 && !canSell(left, qty);
 
   // Pre-fill the rate this customer (or anyone) last paid for this brick type.
   function pickType(type: string) {
@@ -214,7 +220,7 @@ function NewSaleRow({ n, customers, types, remaining, lastLines, onSaved }: {
         _items: [{ quality_id: f.type, quantity: qty, rate_per_1000: rate }], _paid: paid, _method: "cash", _handler: paid > 0 ? me : null,
       });
       if (error) throw error;
-      toast.success(`${t("saved")} — ${fmt(qty)} ${t("bricks")}`);
+      toast.success(`${t("saved")} — ${fmt(qty)} ${byLoad ? t("loads") : t("bricks")}`);
       setF({ ...blank, date: f.date, customer: f.customer });
       onSaved();
     } catch (e) {
@@ -233,11 +239,11 @@ function NewSaleRow({ n, customers, types, remaining, lastLines, onSaved }: {
         <option value="">{t("chooseCustomer")}</option>{customers.filter((c) => c.is_active).map((c) => <option key={c.party_id} value={c.party_id!}>{c.name}</option>)}
       </select></td>
       <td className="c"><select className="cell" value={f.type} onChange={(e) => pickType(e.target.value)} aria-label={t("brickType")}>
-        <option value="">{t("brickType")}…</option>{types.map((q) => <option key={q.id} value={q.id}>{q.name_en} ({fmt(remaining(q.id))})</option>)}
+        <option value="">{t("brickType")}…</option><TypeOptions types={types} roray={roray} left={remaining} />
       </select></td>
-      <td className={`c ${tooMuch ? "warn" : ""}`}><input className={`cell n num ${tooMuch ? "bad" : ""}`} inputMode="numeric" placeholder="0" value={f.qty} onChange={(e) => setF({ ...f, qty: e.target.value })} onKeyDown={enter} aria-label={t("quantityCol")} title={tooMuch ? `${t("notEnoughStock")}: ${t("available")} ${fmt(left)}` : undefined} /></td>
-      <td className="c"><input className="cell n num" inputMode="numeric" placeholder="0" value={f.rate} onChange={(e) => setF({ ...f, rate: e.target.value })} onKeyDown={enter} aria-label={t("ratePer1000")} /></td>
-      <td className="n num font-semibold">{qty > 0 && rate > 0 ? fmt(amountFor(qty, rate)) : ""}</td>
+      <td className={`c ${tooMuch ? "warn" : ""}`}><input className={`cell n num ${tooMuch ? "bad" : ""}`} inputMode="numeric" placeholder={byLoad ? t("loads") : "0"} value={f.qty} onChange={(e) => setF({ ...f, qty: e.target.value })} onKeyDown={enter} aria-label={t("quantityCol")} title={tooMuch ? `${t("notEnoughStock")}: ${t("available")} ${fmt(left)}` : undefined} /></td>
+      <td className="c"><input className="cell n num" inputMode="numeric" placeholder={byLoad ? t("perLoad") : "0"} value={f.rate} onChange={(e) => setF({ ...f, rate: e.target.value })} onKeyDown={enter} aria-label={t("rateCol")} /></td>
+      <td className="n num font-semibold">{qty > 0 && rate > 0 ? fmt(lineAmount(qty, rate, byLoad ? "load" : "thousand")) : ""}</td>
       <td className="c">{cust?.is_cash ? <span className="px-2 text-[11px] text-success">{t("paidAuto")}</span> : <input className="cell n num" inputMode="numeric" placeholder="0" value={f.paid} onChange={(e) => setF({ ...f, paid: e.target.value })} onKeyDown={enter} aria-label={t("paidAtSale")} />}</td>
       <td className="c"><input className="cell" placeholder="—" value={f.vehicle} onChange={(e) => setF({ ...f, vehicle: e.target.value })} onKeyDown={enter} /></td>
       <td className="c"><input className="cell" placeholder="—" value={f.driver} onChange={(e) => setF({ ...f, driver: e.target.value })} onKeyDown={enter} /></td>
@@ -245,6 +251,15 @@ function NewSaleRow({ n, customers, types, remaining, lastLines, onSaved }: {
       <td className="px-1"><Button size="sm" className="h-7" disabled={busy || !f.qty || !f.rate || tooMuch} onClick={save}>{t("add")}</Button></td>
     </tr>
   );
+}
+
+/** Drop-down options: brick types (rate per 1000, with stock left) and roray (rate per load, no stock). */
+export function TypeOptions({ types, roray, left }: { types: Tables<"qualities">[]; roray: Tables<"qualities">[]; left?: (qid: string) => number }) {
+  const { t } = useT();
+  return (<>
+    {types.length > 0 && <optgroup label={t("brickGroup")}>{types.map((q) => <option key={q.id} value={q.id}>{q.name_en}{left ? ` (${fmt(left(q.id))})` : ""}</option>)}</optgroup>}
+    {roray.length > 0 && <optgroup label={t("rorayGroup")}>{roray.map((q) => <option key={q.id} value={q.id}>{q.name_en}</option>)}</optgroup>}
+  </>);
 }
 
 /** Remaining stock per brick type, always visible while selling. */

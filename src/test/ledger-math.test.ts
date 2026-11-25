@@ -88,7 +88,7 @@ describe("customer invoice and balance", () => {
   it("lines rounded half-up each, minus discount, plus delivery", () => {
     // 10,000 Awal @ 14,500 = 145,000; 3,333 Doum @ 12,345 = 41,145.885 → 41,146
     const t = invoiceTotal([{ quantity: 10000, rate_per_1000: 14500 }, { quantity: 3333, rate_per_1000: 12345 }], 1146, 2000);
-    expect(t).toEqual({ gross: 186146, discount: 1146, delivery: 2000, total: 187000, bricks: 13333 });
+    expect(t).toEqual({ gross: 186146, discount: 1146, delivery: 2000, total: 187000, bricks: 13333, loads: 0 });
   });
   it("customer owes the invoice less what he paid", () => {
     const s = statement(0, [

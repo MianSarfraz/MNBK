@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { amountFor, canSell, customerAccount, invoiceTotal, periodKey, stockRow, summarize } from "@/lib/kiln-math";
+import { amountFor, canSell, lineAmount, customerAccount, invoiceTotal, periodKey, stockRow, summarize } from "@/lib/kiln-math";
 
 describe("sale amounts (Quantity / 1000 × Rate)", () => {
   it("5,000 Awal at Rs 18,000 per 1,000 = Rs 90,000", () => expect(amountFor(5000, 18000)).toBe(90000));
@@ -57,5 +57,14 @@ describe("report grouping", () => {
       { key: "2026-11", quantity: 7000, amount: 120000, count: 2 },
       { key: "2026-12", quantity: 1000, amount: 18000, count: 1 },
     ]);
+  });
+});
+
+describe("roray (broken bricks) sold by the load", () => {
+  it("2 trolleys at Rs 6,500 a load = Rs 13,000 (no ÷1000)", () => expect(lineAmount(2, 6500, "load")).toBe(13000));
+  it("brick types still use rate per 1000", () => expect(lineAmount(1250, 18000, "thousand")).toBe(22500));
+  it("an invoice mixing bricks and roray counts bricks and loads separately", () => {
+    expect(invoiceTotal([{ quantity: 1000, rate_per_1000: 18000 }, { quantity: 3, rate_per_1000: 1500, unit: "load" }])).toEqual(
+      { gross: 22500, discount: 0, delivery: 0, total: 22500, bricks: 1000, loads: 3 });
   });
 });

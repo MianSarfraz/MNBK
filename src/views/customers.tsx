@@ -193,20 +193,20 @@ export function CustomerAccount({ id }: { id: string }) {
       <Sheet minWidth={820}>
         <thead>
           <LetterRow cols={8} />
-          <tr><th className="rn">#</th><th className="w-28">{t("date")}</th><th className="w-20">{t("saleIdCol")}</th><th>{t("brickType")}</th><th className="n w-28">{t("quantityCol")}</th>
-            <th className="n w-28">{t("ratePer1000")}</th><th className="n w-28">{t("amountRs")}</th><th className="w-28">{t("vehicle")}</th><th>{t("note")}</th></tr>
+          <tr><th className="rn">#</th><th className="w-28">{t("date")}</th><th className="w-20">{t("saleIdCol")}</th><th>{t("brickType")}</th><th className="n w-28">{t("qtyCol")}</th>
+            <th className="n w-28">{t("rateCol")}</th><th className="n w-28">{t("amountRs")}</th><th className="w-28">{t("vehicle")}</th><th>{t("note")}</th></tr>
         </thead>
         <tbody>
           {(lines.data ?? []).map((l, i) => (
             <tr key={l.item_id}>
               <td className="rn">{i + 1}</td><td className="num">{fmtDate(l.entry_date)}</td>
               <td className="num text-xs"><Link href={`/sales/${l.sale_id}`} className="text-primary hover:underline">{`S-${String(l.invoice_no).padStart(4, "0")}`}</Link></td>
-              <td><TypeName id={l.quality_id} /></td><td className="n num">{fmt(Number(l.quantity))}</td><td className="n num">{fmt(Number(l.rate_per_1000))}</td>
+              <td><TypeName id={l.quality_id} />{l.unit === "load" && <span className="ms-1 text-[11px] text-muted-foreground">({t("perLoad")})</span>}</td><td className="n num">{fmt(Number(l.quantity))}{l.unit === "load" ? ` ${t("loads")}` : ""}</td><td className="n num">{fmt(Number(l.rate_per_1000))}</td>
               <td className="n num font-semibold">{fmt(Number(l.amount))}</td><td>{l.vehicle_no}</td><td className="ro">{l.note}</td>
             </tr>
           ))}
           <tr className="total"><td className="rn" /><td colSpan={3}>{t("total")}</td>
-            <td className="n num">{fmt((lines.data ?? []).reduce((a, l) => a + Number(l.quantity), 0))}</td><td />
+            <td className="n num">{fmt((lines.data ?? []).reduce((a, l) => a + (l.unit === "load" ? 0 : Number(l.quantity)), 0))}</td><td />
             <td className="n num">{fmt((lines.data ?? []).reduce((a, l) => a + Number(l.amount), 0))}</td><td colSpan={2} /></tr>
         </tbody>
       </Sheet>

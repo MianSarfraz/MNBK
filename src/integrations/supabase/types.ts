@@ -316,6 +316,7 @@ export type Database = {
           name_ur: string
           sort_order: number
           stock_quality_id: string | null
+          unit: string
           updated_at: string
         }
         Insert: {
@@ -330,6 +331,7 @@ export type Database = {
           name_ur: string
           sort_order?: number
           stock_quality_id?: string | null
+          unit?: string
           updated_at?: string
         }
         Update: {
@@ -344,6 +346,7 @@ export type Database = {
           name_ur?: string
           sort_order?: number
           stock_quality_id?: string | null
+          unit?: string
           updated_at?: string
         }
         Relationships: []
@@ -914,6 +917,7 @@ export type Database = {
           rate_per_1000: number | null
           sale_id: string | null
           season_id: string | null
+          unit: string | null
           vehicle_no: string | null
         }
         Relationships: []
@@ -927,6 +931,7 @@ export type Database = {
           entry_date: string | null
           gross: number | null
           invoice_no: number | null
+          loads: number | null
           sale_id: string | null
           season_id: string | null
           total: number | null
@@ -937,6 +942,7 @@ export type Database = {
     Functions: {
       ensure_season: { Args: { _d: string }; Returns: string }
       ensure_week: { Args: { _d: string }; Returns: string }
+      line_amount: { Args: { _qty: number; _rate: number; _unit: string }; Returns: number }
       create_sale: {
         Args: {
           _customer_id: string

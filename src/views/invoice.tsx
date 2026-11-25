@@ -7,8 +7,9 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { fmt, fmtDate, useT } from "@/lib/i18n";
-import { amountFor, invoiceTotal, parseWhole } from "@/lib/kiln-math";
-import { errMsg, myId, today, useLedgers, useOwners, useQualities } from "@/lib/data";
+import { invoiceTotal, isLoad, lineAmount, parseWhole } from "@/lib/kiln-math";
+import { errMsg, myId, today, useBrickTypes, useLedgers, useOwners, useQualities, useRoray } from "@/lib/data";
+import { TypeOptions } from "@/views/sales-register";
 import { Button } from "@/components/ui/button";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { BalanceBadge } from "@/components/BalanceBadge";
@@ -47,7 +48,8 @@ export default function InvoicePage() {
   const { sale, items, receipts, customer, closed } = q.data;
   const voided = !!sale.deleted_at;
   const readOnly = closed || voided;
-  const lines = items.map((i) => ({ quantity: Number(i.quantity), rate_per_1000: Number(i.rate_per_1000) }));
+  const unitOf = (qid: string) => (qualities.data ?? []).find((q) => q.id === qid)?.unit ?? "thousand";
+  const lines = items.map((i) => ({ quantity: Number(i.quantity), rate_per_1000: Number(i.rate_per_1000), unit: unitOf(i.quality_id) }));
   // Lines may have been edited below the discount; never crash the page, show the (negative) figure instead.
   const tot = (() => {
     try { return invoiceTotal(lines, Number(sale.discount), Number(sale.delivery_charges)); }
@@ -116,15 +118,15 @@ export default function InvoicePage() {
         </dl>
         <table className="sheet">
           <thead><tr className="border-b-2 border-primary">
-            <th className="p-1 text-start">{t("quality")}</th><th className="p-1">{t("bricks")}</th><th className="p-1">{t("rate")}</th><th className="p-1">{t("amount")}</th>{edit && <th />}
+            <th className="p-1 text-start">{t("quality")}</th><th className="p-1">{t("qtyCol")}</th><th className="p-1">{t("rateCol")}</th><th className="p-1">{t("amount")}</th>{edit && <th />}
           </tr></thead>
           <tbody>
             {items.map((i) => (
               <tr key={i.id} className="border-b">
-                <td className="p-1">{qName(i.quality_id)}</td>
+                <td className="p-1">{qName(i.quality_id)}{isLoad(unitOf(i.quality_id)) && <span className="ms-1 text-xs text-muted-foreground">({t("perLoad")})</span>}</td>
                 <td className="num p-1 text-center">{edit ? <EditNum value={Number(i.quantity)} onSave={(v) => update("sale_items", i.id, { quantity: v })} /> : fmt(Number(i.quantity))}</td>
                 <td className="num p-1 text-center">{edit ? <EditNum value={Number(i.rate_per_1000)} onSave={(v) => update("sale_items", i.id, { rate_per_1000: v })} /> : fmt(Number(i.rate_per_1000))}</td>
-                <td className="num p-1 text-center font-semibold">{fmt(amountFor(Number(i.quantity), Number(i.rate_per_1000)))}</td>
+                <td className="num p-1 text-center font-semibold">{fmt(lineAmount(Number(i.quantity), Number(i.rate_per_1000), unitOf(i.quality_id)))}</td>
                 {edit && <td className="p-1"><ConfirmButton size="sm" variant="outline" disabled={items.length === 1} onConfirm={() => update("sale_items", i.id, { deleted_at: new Date().toISOString() })}>×</ConfirmButton></td>}
               </tr>
             ))}
@@ -132,7 +134,7 @@ export default function InvoicePage() {
         </table>
         {edit && <AddLine saleId={id} onDone={refresh} />}
         <div className="ms-auto mt-4 max-w-sm space-y-1 text-lg">
-          <div className="flex justify-between"><span>{t("gross")} ({fmt(tot.bricks)} {t("bricks")})</span><span className="num">{fmt(tot.gross)}</span></div>
+          <div className="flex justify-between"><span>{t("gross")} ({fmt(tot.bricks)} {t("bricks")}{tot.loads ? `, ${fmt(tot.loads)} ${t("loads")}` : ""})</span><span className="num">{fmt(tot.gross)}</span></div>
           <div className="flex justify-between"><span>{t("discount")}</span><span className="num">{edit ? <EditNum value={tot.discount} allowZero onSave={(v) => (v > tot.gross + tot.delivery ? void toast.error(t("discountTooBig")) : update("sales", id, { discount: v }))} /> : `− ${fmt(tot.discount)}`}</span></div>
           <div className="flex justify-between"><span>{t("deliveryCharges")}</span><span className="num">{edit ? <EditNum value={tot.delivery} allowZero onSave={(v) => update("sales", id, { delivery_charges: v })} /> : `+ ${fmt(tot.delivery)}`}</span></div>
           <div className="flex justify-between border-t-2 border-primary pt-1 text-2xl font-bold"><span>{t("invoiceTotal")}</span><span className="num">Rs {fmt(tot.total)}</span></div>
@@ -191,8 +193,10 @@ function EditNum({ value, onSave, allowZero }: { value: number; onSave: (v: numb
 
 function AddLine({ saleId, onDone }: { saleId: string; onDone: () => void }) {
   const { t } = useT();
-  const qualities = useQualities();
+  const types = useBrickTypes();
+  const roray = useRoray();
   const [l, setL] = useState({ quality: "", qty: "", rate: "" });
+  const byLoad = (roray.data ?? []).some((q) => q.id === l.quality);
   async function add() {
     const qty = parseWhole(l.qty), rate = parseWhole(l.rate);
     if (!l.quality || !qty || !rate) return void toast.error(t("incompleteLine"));
@@ -205,10 +209,10 @@ function AddLine({ saleId, onDone }: { saleId: string; onDone: () => void }) {
     <div className="no-print mt-2 flex flex-wrap items-end gap-2">
       <Select className="w-48" value={l.quality} onChange={(e) => setL({ ...l, quality: e.target.value })}>
         <option value="">{t("quality")}</option>
-        {(qualities.data ?? []).filter((q) => q.kind === "sale" && q.is_active).map((q) => <option key={q.id} value={q.id}>{q.name_en}</option>)}
+        <TypeOptions types={types.data ?? []} roray={roray.data ?? []} />
       </Select>
-      <NumInput className="w-32" value={l.qty} onChange={(v) => setL({ ...l, qty: v })} placeholder={t("bricks")} />
-      <NumInput className="w-28" value={l.rate} onChange={(v) => setL({ ...l, rate: v })} placeholder={t("rate")} />
+      <NumInput className="w-32" value={l.qty} onChange={(v) => setL({ ...l, qty: v })} placeholder={byLoad ? t("loads") : t("bricks")} />
+      <NumInput className="w-28" value={l.rate} onChange={(v) => setL({ ...l, rate: v })} placeholder={byLoad ? t("perLoad") : t("rate")} />
       <ConfirmButton onConfirm={add} disabled={!l.quality || !l.qty || !l.rate}>+ {t("addLine")}</ConfirmButton>
     </div>
   );

@@ -7,13 +7,14 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { fmt, useT } from "@/lib/i18n";
-import { amountFor, invoiceTotal, normalizeDigits, parseWhole } from "@/lib/kiln-math";
+import { invoiceTotal, lineAmount, normalizeDigits, parseWhole } from "@/lib/kiln-math";
 import { errMsg, today, useLedgers, useParties, useQualities } from "@/lib/data";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { BalanceBadge } from "@/components/BalanceBadge";
 import { LetterRow, Sheet as Grid } from "@/components/sheet";
+import { TypeOptions } from "@/views/sales-register";
 import { DateInput, Field, MethodSelect, NumInput, OwnerSelect, PageHeader, Section, Select, type Method } from "@/components/kit";
 
 type Line = { quality: string; qty: string; rate: string };
@@ -57,15 +58,16 @@ export default function NewSale() {
   const [pay, setPay] = useState({ amount: "", method: "cash" as Method, handler: "" });
   const [busy, setBusy] = useState(false);
 
-  // The seven brick types — the same list used for production and stock.
+  // Brick types (stock, rate per 1000) — the same list used for production and stock — plus roray (per load, no stock).
   const saleQualities = (qualities.data ?? []).filter((q) => q.kind === "nakasi" && q.is_active).sort((a, b) => a.sort_order - b.sort_order);
+  const rorayItems = (qualities.data ?? []).filter((q) => q.kind === "sale" && q.unit === "load" && q.is_active).sort((a, b) => a.sort_order - b.sort_order);
   const qById = new Map((qualities.data ?? []).map((q) => [q.id, q]));
-  const parsed = lines.map((l) => ({ ...l, q: parseWhole(l.qty) ?? 0, r: parseWhole(l.rate) ?? 0 }));
+  const parsed = lines.map((l) => ({ ...l, q: parseWhole(l.qty) ?? 0, r: parseWhole(l.rate) ?? 0, unit: qById.get(l.quality)?.unit ?? "thousand" }));
   const valid = parsed.filter((l) => l.quality && l.q > 0 && l.r > 0);
   const discount = parseWhole(h.discount) ?? 0;
   const delivery = parseWhole(h.delivery) ?? 0;
   const totals = useMemo(() => {
-    try { return { ok: true as const, ...invoiceTotal(valid.map((l) => ({ quantity: l.q, rate_per_1000: l.r })), discount, delivery) }; }
+    try { return { ok: true as const, ...invoiceTotal(valid.map((l) => ({ quantity: l.q, rate_per_1000: l.r, unit: l.unit })), discount, delivery) }; }
     catch (e) { return { ok: false as const, error: errMsg(e) }; }
   }, [valid, discount, delivery]);
 
@@ -154,7 +156,7 @@ export default function NewSale() {
         <Grid minWidth={560}>
           <thead>
             <LetterRow cols={5} />
-            <tr><th className="rn">#</th><th>{t("quality")}</th><th className="n w-32">{t("quantityBricks")}</th><th className="n w-28">{t("rate")}</th><th className="n w-32">{t("amount")}</th><th className="w-10" /></tr>
+            <tr><th className="rn">#</th><th>{t("quality")}</th><th className="n w-32">{t("qtyCol")}</th><th className="n w-28">{t("rateCol")}</th><th className="n w-32">{t("amount")}</th><th className="w-10" /></tr>
           </thead>
           <tbody>
             {parsed.map((l, i) => {
@@ -164,18 +166,18 @@ export default function NewSale() {
                 <tr key={i} className={blank && last ? "new" : ""}>
                   <td className="rn">{i + 1}</td>
                   <td className="c"><select className="cell" value={l.quality} onChange={(e) => setLine(i, { quality: e.target.value })} aria-label={`${t("quality")} ${i + 1}`}>
-                    <option value="">{blank && last ? `+ ${t("addLine")}…` : "—"}</option>{saleQualities.map((q) => <option key={q.id} value={q.id}>{q.name_en}</option>)}
+                    <option value="">{blank && last ? `+ ${t("addLine")}…` : "—"}</option><TypeOptions types={saleQualities} roray={rorayItems} />
                   </select></td>
-                  <td className="c"><input className="cell n num" inputMode="numeric" placeholder="0" value={l.qty} onChange={(e) => setLine(i, { qty: e.target.value })} aria-label={`${t("quantityBricks")} ${i + 1}`} /></td>
-                  <td className="c"><input className="cell n num" inputMode="numeric" placeholder="0" value={l.rate} onChange={(e) => setLine(i, { rate: e.target.value })} aria-label={`${t("rate")} ${i + 1}`} /></td>
-                  <td className="n num font-semibold">{l.q > 0 && l.r > 0 ? fmt(amountFor(l.q, l.r)) : ""}</td>
+                  <td className="c"><input className="cell n num" inputMode="numeric" placeholder={l.unit === "load" ? t("loads") : "0"} value={l.qty} onChange={(e) => setLine(i, { qty: e.target.value })} aria-label={`${t("quantityBricks")} ${i + 1}`} /></td>
+                  <td className="c"><input className="cell n num" inputMode="numeric" placeholder={l.unit === "load" ? t("perLoad") : "0"} value={l.rate} onChange={(e) => setLine(i, { rate: e.target.value })} aria-label={`${t("rate")} ${i + 1}`} /></td>
+                  <td className="n num font-semibold">{l.q > 0 && l.r > 0 ? fmt(lineAmount(l.q, l.r, l.unit)) : ""}</td>
                   <td className="px-1">{!(blank && last) && <Button variant="outline" size="sm" className="h-7" onClick={() => setLines(lines.filter((_, j) => j !== i))}>×</Button>}</td>
                 </tr>
               );
             })}
             <tr className="total">
               <td className="rn" /><td>{t("total")}</td>
-              <td className="n num">{fmt(totals.ok ? totals.bricks : 0)}</td><td />
+              <td className="n num">{fmt(totals.ok ? totals.bricks : 0)}{totals.ok && totals.loads ? <div className="text-[11px] font-normal">+ {fmt(totals.loads)} {t("loads")}</div> : null}</td><td />
               <td className="n num">{fmt(totals.ok ? totals.gross : 0)}</td><td />
             </tr>
           </tbody>
@@ -195,7 +197,7 @@ export default function NewSale() {
           <Field label={t("deliveryCharges")}><NumInput value={h.delivery} onChange={(v) => setH({ ...h, delivery: v })} placeholder="0" /></Field>
           <div className="md:col-span-2 register-paper rounded-lg border p-3 text-lg">
             {totals.ok ? (<>
-              <div className="flex justify-between"><span>{t("gross")} ({fmt(totals.bricks)} {t("bricks")})</span><span className="num">{fmt(totals.gross)}</span></div>
+              <div className="flex justify-between"><span>{t("gross")} ({fmt(totals.bricks)} {t("bricks")}{totals.loads ? `, ${fmt(totals.loads)} ${t("loads")}` : ""})</span><span className="num">{fmt(totals.gross)}</span></div>
               <div className="flex justify-between"><span>{t("discount")}</span><span className="num">− {fmt(totals.discount)}</span></div>
               <div className="flex justify-between"><span>{t("deliveryCharges")}</span><span className="num">+ {fmt(totals.delivery)}</span></div>
               <div className="flex justify-between border-t-2 border-primary pt-1 text-2xl font-bold"><span>{t("invoiceTotal")}</span><span className="num">Rs {fmt(totals.total)}</span></div>
