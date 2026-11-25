@@ -1,16 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { fmt, fmtDate, useT } from "@/lib/i18n";
 import { amountFor, normalizeDigits, rateOn, suggestedKharcha, weekDays, type Rate } from "@/lib/kiln-math";
 import { errMsg, myId, today, usePatheers, useRates } from "@/lib/data";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { KharchaCell } from "@/components/KharchaCell";
+import { KharchaSheet } from "@/components/KharchaSheet";
+import { Cell, LetterRow, Sheet } from "@/components/sheet";
 import { DateInput, Empty, Field, NumInput, PageHeader, Select, WeekPicker, useWeekNav } from "@/components/kit";
 
 type Entry = { estimated_count: number; confirmed_count: number | null };
@@ -176,6 +176,10 @@ export default function Weekly() {
 
   const statusText = status === "ok" && !pending ? `✓ ${t("allSaved")}` : status === "failed" ? `${t("unsaved")} (${fmt(pending)})` : t("saving");
 
+  const kharchaRows = rows.map((p) => { const tt = totals(p.id); return { id: p.id, name: p.name, bricks: tt.conf, earn: tt.earn, suggested: tt.kh, noRate: tt.noRate }; });
+  const dayTotal = (d: string) => rows.reduce((a, p) => { const e = entryOf(p.id, d); return { est: a.est + e.estimated_count, conf: a.conf + (e.confirmed_count ?? 0) }; }, { est: 0, conf: 0 });
+  const numOrBlank = (n: number | null) => (n == null || n === 0 ? "" : String(n));
+
   return (
     <div className="space-y-3">
       <PageHeader title={t("weekly")} sub={t("weeklyHelp")} />
@@ -192,13 +196,13 @@ export default function Weekly() {
           toast.success(`${t("saved")} — ${fmtDate(date)}`);
         }} />
 
-      <div className="flex items-center gap-1 text-sm">
+      <div className="flex flex-wrap items-center gap-2 text-sm">
         <div className="inline-flex rounded-lg border bg-card p-0.5">
           {(["day", "week"] as const).map((v) => (
             <button key={v} onClick={() => setView(v)} className={`rounded-md px-3 py-1 ${view === v ? "bg-primary text-primary-foreground" : ""}`}>{t(v === "day" ? "dayView" : "weekView")}</button>
           ))}
         </div>
-        <span className="ms-2 text-xs text-muted-foreground"><span className="rounded bg-warning/30 px-1">{t("pending")}</span> <span className="text-destructive">{t("diff")}</span></span>
+        <span className="text-xs text-muted-foreground"><span className="rounded bg-warning/30 px-1">{t("pending")}</span> <span className="font-semibold text-destructive">{t("diff")}</span> · {t("sheetKeysHelp")}</span>
       </div>
 
       {!rows.length && <Empty>{t("addWorkersFirst")} — <Link href="/patheer" className="text-primary underline">{t("patheer")}</Link></Empty>}
@@ -208,117 +212,92 @@ export default function Weekly() {
           <div className="grid grid-cols-7 gap-1">
             {dates.map((d, i) => (
               <button key={d} onClick={() => setDay(i)}
-                className={`rounded-lg border py-1.5 text-center text-xs ${i === day ? "border-primary bg-primary text-primary-foreground" : "bg-card"} ${d === today() && i !== day ? "border-primary" : ""}`}>
+                className={`rounded-md border py-1 text-center text-xs ${i === day ? "border-primary bg-primary text-primary-foreground" : "bg-card"} ${d === today() && i !== day ? "border-primary" : ""}`}>
                 <div className="font-semibold">{days[i]}</div><div className="num">{d.slice(8)}</div>
               </button>
             ))}
           </div>
-          <div className="divide-y rounded-xl border bg-card">
-            <div className="grid grid-cols-[1fr_5.5rem_5.5rem] gap-2 px-3 py-2 text-xs font-semibold text-muted-foreground">
-              <span>{fmtDate(dates[day])}</span><span className="text-center">{t("estimated")}</span><span className="text-center">{t("confirmed")}</span>
-            </div>
-            {rows.map((p) => {
-              const d = dates[day]!;
-              const e = entryOf(p.id, d);
-              const isPending = e.estimated_count > 0 && e.confirmed_count == null;
-              const diff = e.confirmed_count != null && e.confirmed_count !== e.estimated_count;
-              const r = rateOn(ratesFor(p.id), "earning", d);
-              return (
-                <div key={p.id} className={`grid grid-cols-[1fr_5.5rem_5.5rem] items-center gap-2 px-3 py-2 ${isPending ? "bg-warning/15" : ""}`}>
-                  <div className="min-w-0">
-                    <Link href={`/party/${p.id}`} className="block truncate font-medium">{p.name}</Link>
-                    <div className="num text-xs text-muted-foreground">{e.confirmed_count != null && r != null ? `Rs ${fmt(amountFor(e.confirmed_count, r))}` : isPending ? t("pending") : ""}</div>
-                  </div>
-                  <Input key={`e${p.id}${d}${e.estimated_count}`} disabled={readOnly} className="num h-10 text-center" inputMode="numeric" defaultValue={e.estimated_count || ""}
-                    aria-label={`${p.name} ${t("estimated")}`} onBlur={(ev) => setCell(p.id, d, "estimated_count", ev.target.value)} />
-                  <Input key={`c${p.id}${d}${e.confirmed_count}`} disabled={readOnly} className={`num h-10 text-center font-semibold ${diff ? "border-destructive text-destructive" : ""}`} inputMode="numeric" defaultValue={e.confirmed_count ?? ""}
-                    aria-label={`${p.name} ${t("confirmed")}`} onBlur={(ev) => setCell(p.id, d, "confirmed_count", ev.target.value)} />
-                </div>
-              );
-            })}
-          </div>
-          <details className="rounded-xl border bg-card">
-            <summary className="cursor-pointer px-3 py-2 text-sm font-semibold">{t("weekTotalsKharcha")}</summary>
-            <div className="divide-y">
-              {rows.map((p) => {
-                const tt = totals(p.id);
+          <Sheet>
+            <thead>
+              <tr><th className="rn">#</th><th>{t("patheer")} · {fmtDate(dates[day])}</th><th className="n">{t("estimated")}</th><th className="n">{t("confirmed")}</th><th className="n">Rs</th></tr>
+            </thead>
+            <tbody>
+              {rows.map((p, i) => {
+                const d = dates[day]!;
+                const e = entryOf(p.id, d);
+                const isPending = e.estimated_count > 0 && e.confirmed_count == null;
+                const diff = e.confirmed_count != null && e.confirmed_count !== e.estimated_count;
+                const r = rateOn(ratesFor(p.id), "earning", d);
                 return (
-                  <div key={p.id} className="flex items-start justify-between gap-2 px-3 py-2">
-                    <div className="text-sm">
-                      <div className="font-medium">{p.name}</div>
-                      <div className="num text-xs text-muted-foreground">{t("estimated")} {fmt(tt.est)} · {t("confirmed")} {fmt(tt.conf)}</div>
-                      <div className="num font-semibold text-primary">Rs {fmt(tt.earn)}</div>
-                      {tt.noRate && <div className="text-xs text-destructive">{t("missingRate")}</div>}
-                    </div>
-                    <KharchaCell amount={tt.kh} disabled={readOnly || tt.kh <= 0} onGive={(a, h, date) => giveKharcha(p.id, a, h, date)} />
-                  </div>
+                  <tr key={p.id}>
+                    <td className="rn">{i + 1}</td>
+                    <td className="max-w-36 truncate"><Link href={`/party/${p.id}`}>{p.name}</Link></td>
+                    <td className={`c w-24 ${isPending ? "warn" : ""}`}><Cell numeric value={numOrBlank(e.estimated_count)} disabled={readOnly} label={`${p.name} ${t("estimated")}`} onCommit={(v) => setCell(p.id, d, "estimated_count", v)} /></td>
+                    <td className="c w-24"><Cell numeric bad={diff} value={e.confirmed_count == null ? "" : String(e.confirmed_count)} disabled={readOnly} label={`${p.name} ${t("confirmed")}`} onCommit={(v) => setCell(p.id, d, "confirmed_count", v)} /></td>
+                    <td className="n num ro w-20">{e.confirmed_count != null && r != null ? fmt(amountFor(e.confirmed_count, r)) : isPending ? t("pending") : ""}</td>
+                  </tr>
                 );
               })}
-            </div>
-          </details>
+              <tr className="total"><td className="rn" /><td>{t("total")}</td><td className="n num">{fmt(dayTotal(dates[day]!).est)}</td><td className="n num">{fmt(dayTotal(dates[day]!).conf)}</td><td /></tr>
+            </tbody>
+          </Sheet>
         </>
       )}
 
       {rows.length > 0 && view === "week" && (
-        <div className="overflow-x-auto rounded-xl border bg-card">
-          <table className="w-full border-collapse text-sm">
-            <thead className="bg-secondary">
-              <tr>
-                <th className="sticky start-0 z-10 bg-secondary p-2 text-start">{t("patheer")}</th>
-                {dates.map((d, i) => <th key={d} className={`p-1.5 ${d === today() ? "text-primary" : ""}`}>{days[i]}<div className="num text-[11px] font-normal">{d.slice(8)}/{d.slice(5, 7)}</div></th>)}
-                <th className="p-2">{t("mizanKham")}</th>
-                <th className="p-2">{t("kharcha")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((p) => {
-                const pr = ratesFor(p.id);
-                const tt = totals(p.id);
-                return (
-                  <tr key={p.id} className="border-t align-top">
-                    <td className="sticky start-0 z-10 bg-card p-2 font-semibold">
-                      <Link href={`/party/${p.id}`} className="hover:underline">{p.name}</Link>
-                      {tt.noRate && <div className="text-xs font-normal text-destructive">{t("missingRate")}</div>}
-                    </td>
-                    {dates.map((d) => {
-                      const e = entryOf(p.id, d);
-                      const isPending = e.estimated_count > 0 && e.confirmed_count == null;
-                      const diff = e.confirmed_count != null && e.confirmed_count !== e.estimated_count;
-                      const r = rateOn(pr, "earning", d);
-                      return (
-                        <td key={d} className={`p-1 ${isPending ? "bg-warning/20" : ""}`}>
-                          <Input key={`e${p.id}${d}${e.estimated_count}`} disabled={readOnly} className="num h-9 w-20 px-1 text-center" inputMode="numeric" defaultValue={e.estimated_count || ""}
-                            aria-label={`${p.name} ${d} ${t("estimated")}`} onBlur={(ev) => setCell(p.id, d, "estimated_count", ev.target.value)} />
-                          <Input key={`c${p.id}${d}${e.confirmed_count}`} disabled={readOnly} className={`num mt-1 h-9 w-20 px-1 text-center font-semibold ${diff ? "border-destructive text-destructive" : ""}`} inputMode="numeric" defaultValue={e.confirmed_count ?? ""}
-                            aria-label={`${p.name} ${d} ${t("confirmed")}`} onBlur={(ev) => setCell(p.id, d, "confirmed_count", ev.target.value)} />
-                          <div className="num text-center text-[11px] text-muted-foreground">
-                            {isPending ? t("pending") : e.confirmed_count != null && r != null ? fmt(amountFor(e.confirmed_count, r)) : ""}
-                          </div>
-                        </td>
-                      );
-                    })}
-                    <td className="p-2 text-center">
-                      <div className="num text-muted-foreground">{fmt(tt.est)}</div>
-                      <div className="num font-bold">{fmt(tt.conf)}</div>
-                      <div className="num font-bold text-primary">Rs {fmt(tt.earn)}</div>
-                    </td>
-                    <td className="p-2"><KharchaCell amount={tt.kh} disabled={readOnly || tt.kh <= 0} onGive={(a, h, date) => giveKharcha(p.id, a, h, date)} /></td>
-                  </tr>
-                );
-              })}
-              <tr className="border-t-2 border-primary bg-secondary/50 font-semibold">
-                <td className="sticky start-0 bg-secondary p-2">{t("total")}</td>
-                {dates.map((d) => {
-                  const s = rows.reduce((a, p) => { const e = entryOf(p.id, d); return { est: a.est + e.estimated_count, conf: a.conf + (e.confirmed_count ?? 0) }; }, { est: 0, conf: 0 });
-                  return <td key={d} className="p-1 text-center"><div className="num text-muted-foreground">{fmt(s.est)}</div><div className="num">{fmt(s.conf)}</div></td>;
-                })}
-                <td className="p-2 text-center num">{fmt(rows.reduce((a, p) => a + totals(p.id).conf, 0))}</td>
-                <td />
-              </tr>
-            </tbody>
-          </table>
-        </div>
+        <Sheet minWidth={1180}>
+          <thead>
+            <LetterRow cols={1 + dates.length * 2 + 3} />
+            <tr>
+              <th className="rn" rowSpan={2}>#</th>
+              <th rowSpan={2}>{t("patheer")}</th>
+              {dates.map((d, i) => <th key={d} colSpan={2} className={`text-center ${d === today() ? "underline decoration-2 underline-offset-4" : ""}`}>{days[i]} <span className="num font-normal opacity-80">{d.slice(8)}/{d.slice(5, 7)}</span></th>)}
+              <th colSpan={2} className="text-center">{t("mizanKham")}</th>
+              <th rowSpan={2} className="n">Rs</th>
+            </tr>
+            <tr className="sub">
+              {[...dates, "total"].map((d) => <Fragment key={d}><th>{t("estShort")}</th><th>{t("confShort")}</th></Fragment>)}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((p, i) => {
+              const tt = totals(p.id);
+              return (
+                <tr key={p.id}>
+                  <td className="rn">{i + 1}</td>
+                  <td className="whitespace-nowrap font-medium">
+                    <Link href={`/party/${p.id}`} className="hover:underline">{p.name}</Link>
+                    {tt.noRate && <span className="ms-1 text-[11px] text-destructive">{t("missingRate")}</span>}
+                  </td>
+                  {dates.map((d) => {
+                    const e = entryOf(p.id, d);
+                    const isPending = e.estimated_count > 0 && e.confirmed_count == null;
+                    const diff = e.confirmed_count != null && e.confirmed_count !== e.estimated_count;
+                    return (
+                      <Fragment key={d}>
+                        <td className={`c w-[4.25rem] ${isPending ? "warn" : ""}`}><Cell numeric value={numOrBlank(e.estimated_count)} disabled={readOnly} label={`${p.name} ${d} ${t("estimated")}`} onCommit={(v) => setCell(p.id, d, "estimated_count", v)} /></td>
+                        <td className="c w-[4.25rem]"><Cell numeric bad={diff} value={e.confirmed_count == null ? "" : String(e.confirmed_count)} disabled={readOnly} label={`${p.name} ${d} ${t("confirmed")}`} onCommit={(v) => setCell(p.id, d, "confirmed_count", v)} /></td>
+                      </Fragment>
+                    );
+                  })}
+                  <td className="n num ro">{fmt(tt.est)}</td>
+                  <td className="n num font-semibold">{fmt(tt.conf)}</td>
+                  <td className="n num font-semibold text-primary">{fmt(tt.earn)}</td>
+                </tr>
+              );
+            })}
+            <tr className="total">
+              <td className="rn" /><td>{t("total")}</td>
+              {dates.map((d) => { const s = dayTotal(d); return <Fragment key={d}><td className="n num">{fmt(s.est)}</td><td className="n num">{fmt(s.conf)}</td></Fragment>; })}
+              <td className="n num">{fmt(rows.reduce((a, p) => a + totals(p.id).est, 0))}</td>
+              <td className="n num">{fmt(rows.reduce((a, p) => a + totals(p.id).conf, 0))}</td>
+              <td className="n num">{fmt(rows.reduce((a, p) => a + totals(p.id).earn, 0))}</td>
+            </tr>
+          </tbody>
+        </Sheet>
       )}
+
+      {rows.length > 0 && <KharchaSheet rows={kharchaRows} readOnly={readOnly} onGive={giveKharcha} />}
     </div>
   );
 

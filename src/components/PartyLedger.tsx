@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,13 +11,14 @@ import {
   addDays, amountFor, monthEnd, parseWhole, rateOn, statement, txnEffect, weekStart,
   type Direction, type LedgerItem, type Rate, type TxnKind,
 } from "@/lib/kiln-math";
-import { errMsg, myId, openReceipt, today, uploadReceipt, useSeasons, WORKER_KINDS, type PartyKind } from "@/lib/data";
+import { errMsg, myId, openReceipt, today, uploadReceipt, useOwners, useSeasons, WORKER_KINDS, type PartyKind } from "@/lib/data";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { BalanceBadge } from "@/components/BalanceBadge";
-import { DateInput, Empty, Field, MethodSelect, NumInput, OwnerSelect, PrintHeader, Section, Select, type Method } from "@/components/kit";
+import { DateInput, Empty, Field, METHODS, methodLabel, NumInput, OwnerSelect, PrintHeader, Section, Select, type Method } from "@/components/kit";
+import { LetterRow, Sheet as Grid } from "@/components/sheet";
 
 type Txn = Tables<"transactions">;
 type Action = { key: string; label: Key; kind: TxnKind; direction: Direction; handler: "paidBy" | "receivedBy" };
@@ -139,6 +140,10 @@ export function PartyLedger({ id, initialFrom, initialTo }: { id: string; initia
   const [form, setForm] = useState({ action: "", amount: "", date: today(), handler: "", method: "cash" as Method, note: "" });
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
+  const owners = useOwners();
+  const [me, setMe] = useState("");
+  useEffect(() => { myId().then(setMe).catch(() => {}); }, []);
+  const ownerName = (oid: string) => (owners.data ?? []).find((o) => o.id === oid)?.display_name ?? "—";
 
   if (q.error) return <div className="p-8 text-center text-destructive">{errMsg(q.error)}</div>;
   if (!q.data || !view) return <div className="p-8 text-center text-muted-foreground">…</div>;
@@ -148,18 +153,21 @@ export function PartyLedger({ id, initialFrom, initialTo }: { id: string; initia
   const action = actions.find((a) => a.key === form.action) ?? actions[0];
   const { st } = view;
   const closing = st.closing;
+  const handler = form.handler || me;
+  const preview = action ? txnEffect(action.kind, action.direction, 1) : 1;
+  const previewAmt = (parseWhole(form.amount) ?? 0) * preview;
 
   async function save() {
     if (!action) return;
     const amount = parseWhole(form.amount);
     if (!amount || amount <= 0) return void toast.error(t("wholeRupees"));
-    if (!form.handler) return void toast.error(t(action.handler));
+    if (!handler) return void toast.error(t(action.handler));
     setBusy(true);
     try {
       const receipt_url = file ? await uploadReceipt(file) : null;
       const { error } = await supabase.from("transactions").insert({
         entry_date: form.date, party_id: id, kind: action.kind, direction: action.direction, amount,
-        method: form.method, handler_user_id: form.handler, category: kind, note: form.note.trim() || null,
+        method: action.kind === "adjustment" ? "cash" : form.method, handler_user_id: handler, category: kind, note: form.note.trim() || null,
         receipt_url, created_by: await myId(),
       });
       if (error) throw error;
@@ -186,7 +194,8 @@ export function PartyLedger({ id, initialFrom, initialTo }: { id: string; initia
     // Pre-fill the payment that brings the balance to zero.
     const want = actions.find((a) => (closing > 0 ? a.direction === "out" && a.kind !== "adjustment" && a.kind !== "kharcha" : a.direction === "in" && a.kind !== "adjustment"));
     if (want) setForm({ ...form, action: want.key, amount: String(Math.abs(closing)) });
-    document.getElementById("pay-form")?.scrollIntoView({ behavior: "smooth" });
+    document.getElementById("ledger-new")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    setTimeout(() => document.getElementById("ledger-amount")?.focus(), 300);
   }
 
   const periodText = range.from || range.to ? `${fmtDate(range.from)} → ${fmtDate(range.to)}` : t("allTime");
@@ -229,13 +238,13 @@ export function PartyLedger({ id, initialFrom, initialTo }: { id: string; initia
           <Field label={t("from")}><Input className="h-10" type="date" value={period.from ?? ""} onChange={(e) => setPeriod({ ...period, from: e.target.value })} /></Field>
           <Field label={t("to")}><Input className="h-10" type="date" value={period.to ?? ""} onChange={(e) => setPeriod({ ...period, to: e.target.value })} /></Field>
         </>)}
-        <div className="num pb-3 text-muted-foreground">{periodText}</div>
+        <div className="num pb-2 text-sm text-muted-foreground">{periodText}</div>
       </div>
 
       {/* Statement summary */}
       <section className="register-paper rounded-xl border p-4">
-        <h2 className="mb-3 text-xl font-bold text-primary">{t("statement")}</h2>
-        <dl className="grid grid-cols-2 gap-x-6 gap-y-1 text-lg md:grid-cols-4">
+        <h2 className="mb-2 text-base font-semibold text-primary">{t("statement")}</h2>
+        <dl className="grid grid-cols-2 gap-x-6 gap-y-0.5 text-sm md:grid-cols-4">
           <dt>{range.from ? t("broughtForward") : t("opening")}</dt><dd className="num">{fmt(st.broughtForward)}</dd>
           {isWorker && <><dt>{t("confirmed")} {t("bricks")}</dt><dd className="num font-semibold">{fmt(view.bricks)}{view.pending ? ` (${fmt(view.pending)} ${t("pending")})` : ""}</dd></>}
           {kind !== "customer" && kind !== "vendor" && <><dt>{kind === "employee" ? t("salaryPosted") : t("earnings")}</dt><dd className="num">+ {fmt(view.sum("work"))}</dd></>}
@@ -247,7 +256,7 @@ export function PartyLedger({ id, initialFrom, initialTo }: { id: string; initia
             return <span key={a.key} className="contents"><dt>{t(a.label)}</dt><dd className="num">{sign} {fmt(v)}</dd></span>;
           })}
         </dl>
-        <div className="mt-4 flex flex-wrap items-center gap-3 border-t-2 border-primary pt-3 text-2xl font-bold">
+        <div className="mt-3 flex flex-wrap items-center gap-3 border-t-2 border-primary pt-2 text-lg font-bold">
           {t("balance")}: <span className="num">{fmt(Math.abs(closing))}</span> <BalanceBadge balance={closing} kind={kind} />
           {closing !== 0 && actions.length > 0 && !range.to && <Button className="no-print" variant="secondary" onClick={settleNow}>{t("settleNow")}</Button>}
         </div>
@@ -255,66 +264,89 @@ export function PartyLedger({ id, initialFrom, initialTo }: { id: string; initia
         <p className="mt-1 text-xs text-muted-foreground">{t(kind === "customer" ? "signHelpCustomer" : "signHelp")}</p>
       </section>
 
-      {/* Payment entry */}
-      {actions.length > 0 && (
-        <section id="pay-form" className="no-print grid gap-3 rounded-xl border bg-card p-4 md:grid-cols-4">
-          <Field label={t("type")}>
-            <Select value={action?.key} onChange={(e) => setForm({ ...form, action: e.target.value })}>
-              {actions.map((a) => <option key={a.key} value={a.key}>{t(a.label)}</option>)}
-            </Select>
-          </Field>
-          <Field label={t("amount")}><NumInput value={form.amount} onChange={(v) => setForm({ ...form, amount: v })} placeholder="0" /></Field>
-          <Field label={t("date")}><DateInput value={form.date} onChange={(v) => setForm({ ...form, date: v })} /></Field>
-          <Field label={action ? t(action.handler) : ""}><OwnerSelect value={form.handler} onChange={(v) => setForm((f) => ({ ...f, handler: v }))} /></Field>
-          {action?.kind !== "adjustment" && <Field label={t("method")}><MethodSelect value={form.method} onChange={(v) => setForm({ ...form, method: v })} /></Field>}
-          <Field label={t("note")} className="md:col-span-2"><Input className="h-10" value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} /></Field>
-          <Field label={t("receiptPhoto")}><Input className="h-10" type="file" accept="image/*,application/pdf" capture="environment" onChange={(e) => setFile(e.target.files?.[0] ?? null)} /></Field>
-          <div className="flex items-end md:col-span-4">
-            <ConfirmButton size="lg" onConfirm={save} disabled={!form.amount || busy}
-              description={`${action ? t(action.label) : ""}: Rs ${fmt(parseWhole(form.amount) ?? 0)} — ${t("balanceChange")}`}>
-              {t("save")}
-            </ConfirmButton>
-          </div>
-        </section>
-      )}
-
       {kind === "employee" && <SalaryPoster partyId={id} monthly={Number(party.monthly_salary)} />}
 
-      {/* Running ledger */}
-      <section className="overflow-x-auto rounded-xl border bg-card">
-        <table className="w-full text-sm">
-          <thead className="bg-secondary"><tr>
-            <th className="p-2 text-start">{t("date")}</th><th className="p-2 text-start">{t("detail")}</th>
-            <th className="p-2">+</th><th className="p-2">−</th><th className="p-2">{t("balance")}</th><th className="no-print" />
-          </tr></thead>
-          <tbody>
-            <tr className="border-t bg-muted/40"><td className="num p-2">{range.from ? fmtDate(range.from) : "—"}</td><td className="p-2">{range.from ? t("broughtForward") : t("opening")}</td><td /><td /><td className="num p-2 text-center font-semibold">{fmt(st.broughtForward)}</td><td className="no-print" /></tr>
-            {st.rows.map((r, i) => {
-              const tx = r.ref?.startsWith("tx:") ? view.txById.get(r.ref.slice(3)) : undefined;
-              return (
-                <tr key={i} className="border-t">
-                  <td className="num whitespace-nowrap p-2">{fmtDate(r.date)}</td>
-                  <td className="p-2">
-                    {r.ref?.startsWith("sale:") ? <Link href={`/sales/${r.ref.slice(5)}`} className="text-primary underline">{r.label}</Link> : r.label}
-                    {r.bricks ? <span className="num text-sm text-muted-foreground"> — {fmt(r.bricks)} {t("bricks")}</span> : null}
-                    {r.pending ? <span className="text-sm text-warning-foreground"> ({fmt(r.pending)} {t("pending")})</span> : null}
-                    {r.note ? <span className="text-sm text-muted-foreground"> — {r.note}</span> : null}
-                    {tx?.receipt_url && <button className="no-print ms-2 text-sm text-primary underline" onClick={() => openReceipt(tx.receipt_url!).catch((e) => toast.error(errMsg(e)))}>{t("receipt")}</button>}
-                  </td>
-                  <td className="num p-2 text-center text-success">{r.amount > 0 ? fmt(r.amount) : ""}</td>
-                  <td className="num p-2 text-center text-destructive">{r.amount < 0 ? fmt(-r.amount) : ""}</td>
-                  <td className={`num p-2 text-center font-semibold ${r.running < 0 ? "text-success" : ""}`}>{fmt(Math.abs(r.running))}{r.running < 0 ? " ⇠" : ""}</td>
-                  <td className="no-print p-1">{(r.ref?.startsWith("tx:") || r.ref?.startsWith("sm:")) && <ConfirmButton size="sm" variant="outline" onConfirm={() => voidRef(r.ref!)}>{t("remove")}</ConfirmButton>}</td>
-                </tr>
-              );
-            })}
-            <tr className="border-t-2 border-primary font-bold"><td /><td className="p-2">{t("closingBalance")}</td>
-              <td className="num p-2 text-center">{fmt(st.credits)}</td><td className="num p-2 text-center">{fmt(st.debits)}</td>
-              <td className="num p-2 text-center">{fmt(Math.abs(closing))}</td><td className="no-print" /></tr>
-          </tbody>
-        </table>
-        {!st.rows.length && <div className="p-4"><Empty /></div>}
-      </section>
+      {/* Running ledger as a sheet; new payments are typed into the blank bottom row */}
+      <Grid minWidth={760}>
+        <thead>
+          <LetterRow cols={8} />
+          <tr>
+            <th className="rn">#</th><th className="w-32">{t("date")}</th><th className="w-40">{t("type")}</th><th>{t("detail")}</th>
+            <th className="n w-28">+</th><th className="n w-28">−</th><th className="n w-32">{t("balance")}</th><th className="w-32">{t("by")}</th><th className="no-print w-12" />
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td className="rn" /><td className="num">{range.from ? fmtDate(range.from) : "—"}</td><td className="ro">{range.from ? t("broughtForward") : t("opening")}</td><td />
+            <td /><td /><td className="n num font-semibold">{fmt(Math.abs(st.broughtForward))}{st.broughtForward < 0 ? " ⇠" : ""}</td><td /><td className="no-print" />
+          </tr>
+          {st.rows.map((r, i) => {
+            const tx = r.ref?.startsWith("tx:") ? view.txById.get(r.ref.slice(3)) : undefined;
+            const sameDay = i > 0 && st.rows[i - 1]!.date === r.date;
+            return (
+              <tr key={i} className={i > 0 && !sameDay ? "day-start" : ""}>
+                <td className="rn">{i + 1}</td>
+                <td className={`num whitespace-nowrap ${sameDay ? "dim" : ""}`}>{fmtDate(r.date)}</td>
+                <td className="whitespace-nowrap">
+                  {r.ref?.startsWith("sale:") ? <Link href={`/sales/${r.ref.slice(5)}`} className="text-primary underline">{r.label}</Link> : r.label}
+                </td>
+                <td className="text-muted-foreground">
+                  {r.bricks ? <span className="num">{fmt(r.bricks)} {t("bricks")}</span> : null}
+                  {r.pending ? <span className="text-warning-foreground"> ({fmt(r.pending)} {t("pending")})</span> : null}
+                  {r.note ? <span> {r.bricks ? "— " : ""}{r.note}</span> : null}
+                  {tx?.receipt_url && <button className="no-print ms-1" title={t("receipt")} onClick={() => openReceipt(tx.receipt_url!).catch((e) => toast.error(errMsg(e)))}>📎</button>}
+                </td>
+                <td className="n num text-success">{r.amount > 0 ? fmt(r.amount) : ""}</td>
+                <td className="n num text-destructive">{r.amount < 0 ? fmt(-r.amount) : ""}</td>
+                <td className={`n num font-semibold ${r.running < 0 ? "text-success" : ""}`}>{fmt(Math.abs(r.running))}{r.running < 0 ? " ⇠" : ""}</td>
+                <td className="text-xs">{tx ? <>{ownerName(tx.handler_user_id)}{tx.method !== "cash" && tx.kind !== "adjustment" ? <span className="text-muted-foreground"> · {methodLabel(t, tx.method)}</span> : null}</> : ""}</td>
+                <td className="no-print px-1">{(r.ref?.startsWith("tx:") || r.ref?.startsWith("sm:")) && <ConfirmButton size="sm" variant="outline" onConfirm={() => voidRef(r.ref!)}>×</ConfirmButton>}</td>
+              </tr>
+            );
+          })}
+          {actions.length > 0 && (
+            <tr className="new no-print" id="ledger-new">
+              <td className="rn">{st.rows.length + 1}</td>
+              <td className="c"><input className="cell" type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></td>
+              <td className="c">
+                <select className="cell font-medium" value={action?.key} onChange={(e) => setForm({ ...form, action: e.target.value })} aria-label={t("type")}>
+                  {actions.map((a) => <option key={a.key} value={a.key}>{t(a.label)}</option>)}
+                </select>
+              </td>
+              <td className="c"><input className="cell" placeholder={t("note")} value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} /></td>
+              <td className="c" colSpan={2}>
+                <input id="ledger-amount" className={`cell n num font-semibold ${preview > 0 ? "text-success" : "text-destructive"}`} inputMode="numeric" placeholder={`0  (${preview >= 0 ? "+" : "−"})`}
+                  value={form.amount} aria-label={t("amount")} onChange={(e) => setForm({ ...form, amount: e.target.value })}
+                  onKeyDown={(e) => { if (e.key === "Enter" && form.amount) { e.preventDefault(); document.getElementById("ledger-save")?.click(); } }} />
+              </td>
+              <td className="n num ro">{form.amount ? <>{fmt(Math.abs(closing + previewAmt))}{closing + previewAmt < 0 ? " ⇠" : ""}</> : ""}</td>
+              <td className="c">
+                <div className="flex">
+                  <OwnerSelect className="cell min-w-0 flex-1 text-xs" value={handler} onChange={(v) => setForm((f) => ({ ...f, handler: v }))} />
+                  {action?.kind !== "adjustment" && (
+                    <select className="cell w-16 shrink-0 text-xs" value={form.method} onChange={(e) => setForm({ ...form, method: e.target.value as Method })} aria-label={t("method")}>
+                      {METHODS.map((m) => <option key={m} value={m}>{methodLabel(t, m)}</option>)}
+                    </select>
+                  )}
+                </div>
+              </td>
+              <td className="whitespace-nowrap px-1">
+                <label className="cursor-pointer px-0.5" title={t("receiptPhoto")}>{file ? "✅" : "📎"}<input type="file" className="hidden" accept="image/*,application/pdf" capture="environment" onChange={(e) => setFile(e.target.files?.[0] ?? null)} /></label>
+                <ConfirmButton id="ledger-save" size="sm" className="h-7" onConfirm={save} disabled={!form.amount || busy}
+                  description={`${action ? t(action.label) : ""}: Rs ${fmt(parseWhole(form.amount) ?? 0)} — ${t("balanceChange")}`}>
+                  {t("add")}
+                </ConfirmButton>
+              </td>
+            </tr>
+          )}
+          <tr className="total">
+            <td className="rn" /><td colSpan={3}>{t("closingBalance")}</td>
+            <td className="n num">{fmt(st.credits)}</td><td className="n num">{fmt(st.debits)}</td>
+            <td className="n num">{fmt(Math.abs(closing))}{closing < 0 ? " ⇠" : ""}</td><td colSpan={2} />
+          </tr>
+        </tbody>
+      </Grid>
+      {!st.rows.length && <Empty />}
 
       {isWorker && <RatesEditor partyId={id} rates={view.rates} />}
       <PartyDetails party={party} />

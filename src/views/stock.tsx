@@ -93,8 +93,8 @@ export default function StockPage() {
 
       <Section title={t("finishedStock")}>
         {!finRows.length ? <Empty /> : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+          <div className="sheet-wrap">
+            <table className="sheet">
               <thead className="bg-secondary"><tr>
                 <th className="p-2 text-start">{t("quality")}</th><th className="p-2">{t("bakedOut")}</th><th className="p-2">{t("sold")}</th><th className="p-2">{t("adjusted")}</th><th className="p-2">{t("inStock")}</th>
               </tr></thead>
@@ -137,7 +137,7 @@ export default function StockPage() {
         </div>
         {byPatheer.length > 0 && (
           <div className="mt-4 overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="sheet">
               <thead><tr className="text-muted-foreground"><th className="p-2 text-start">{t("patheer")}</th><th className="p-2">{t("madeConfirmed")}</th><th className="p-2">{t("loadedFromHim")}</th></tr></thead>
               <tbody>
                 {byPatheer.map((r) => (
@@ -154,8 +154,8 @@ export default function StockPage() {
 
       <Section title={t("adjustments")}>
         {!(adj.data ?? []).length ? <Empty /> : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+          <div className="sheet-wrap">
+            <table className="sheet">
               <thead><tr className="text-muted-foreground"><th className="p-2 text-start">{t("date")}</th><th className="p-2 text-start">{t("quality")}</th><th className="p-2">{t("bricks")}</th><th className="p-2 text-start">{t("reason")}</th><th /></tr></thead>
               <tbody>
                 {(adj.data ?? []).map((a) => (

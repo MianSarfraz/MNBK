@@ -189,7 +189,9 @@ describe("weekly register", () => {
     WRITES.length = 0;
     const { spy } = await mount("/weekly");
     const cell = await screen.findByLabelText("Akram 2026-11-13 Estimated", {}, { timeout: 4000 });
-    fireEvent.blur(cell, { target: { value: "2000" } });
+    fireEvent.focus(cell);
+    fireEvent.change(cell, { target: { value: "2000" } });
+    fireEvent.blur(cell);
     await waitFor(() => expect(WRITES.some((w) => w.table === "production_entries")).toBe(true), { timeout: 4000 });
     const w = WRITES.find((x) => x.table === "production_entries")!;
     expect(w.op).toBe("insert");

@@ -24,6 +24,11 @@ const dict = {
   byOwner: "By owner",
   // ---- Layout / navigation ----
   home: "Home",
+  loadsSheet: "Loads (rehra)",
+  estShort: "Est",
+  confShort: "Conf",
+  suggested: "Suggested",
+  sheetKeysHelp: "Enter / ↓ next row, ← → next cell, Tab moves right",
   seasonsAutoHelp: "Seasons (1 July – 30 June) and Thursday–Wednesday weeks are created automatically from entry dates. Use this page only to close a finished season (makes it read-only) or to set custom dates.",
   register: "Register",
   khata: "Khata",
@@ -110,6 +115,7 @@ const dict = {
   checkEmail: "Check your email to confirm your account",
   noSeason: "No data yet — weeks and seasons are created automatically when you add entries.",
   bricks: "bricks",
+  bricksCol: "Bricks",
   saving: "Saving…",
   unsaved: "Unsaved — retrying",
   allSaved: "All saved",
@@ -363,7 +369,7 @@ export function fmt(n: number | null | undefined) {
 export function fmtDate(d: string | null | undefined) {
   if (!d) return "—";
   const [y, m, day] = d.slice(0, 10).split("-");
-  return `${day}-${m}-${y}`;
+  return `${day}/${m}/${y}`;
 }
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];

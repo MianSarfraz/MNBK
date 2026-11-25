@@ -116,8 +116,8 @@ export default function OwnersPage() {
           <div className="flex items-end"><ConfirmButton size="lg" onConfirm={saveCount} disabled={!cc.counted} description={t("cashCountHelp")}>{t("save")}</ConfirmButton></div>
         </div>
         {!(countsQ.data ?? []).length ? <Empty /> : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+          <div className="sheet-wrap">
+            <table className="sheet">
               <thead><tr className="text-muted-foreground">
                 <th className="p-2 text-start">{t("date")}</th><th className="p-2 text-start">{t("owner")}</th><th className="p-2">{t("expectedCash")}</th>
                 <th className="p-2">{t("countedCash")}</th><th className="p-2">{t("diff")}</th><th className="p-2 text-start">{t("note")}</th><th />
@@ -147,8 +147,8 @@ export default function OwnersPage() {
           {list.map((o) => <option key={o.id} value={o.id}>{o.display_name}</option>)}
         </Select>}>
         {!ownerTx.length ? <Empty /> : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+          <div className="sheet-wrap">
+            <table className="sheet">
               <thead><tr className="text-muted-foreground">
                 <th className="p-2 text-start">{t("date")}</th><th className="p-2 text-start">{t("type")}</th><th className="p-2 text-start">{t("detail")}</th>
                 <th className="p-2">{t("in")}</th><th className="p-2">{t("out")}</th>

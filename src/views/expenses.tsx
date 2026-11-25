@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { Cell, LetterRow, Sheet as Grid } from "@/components/sheet";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -138,18 +139,18 @@ function Sheet({ direction, rows, cats, me, describe, categoryOf, ownerName, par
   return (
     <div className="space-y-2">
     <MobileNewRow direction={direction} lastDate={rows.at(-1)?.entry_date} listId={listId} me={me} categoryId={categoryId} onSaved={onChange} />
-    <div className="overflow-x-auto rounded-xl border bg-card">
-      <datalist id={listId}>{cats.filter((c) => c.is_active).map((c) => <option key={c.id} value={c.name_en} />)}</datalist>
-      <table className="w-full border-collapse text-sm sm:min-w-[640px]">
+    <datalist id={listId}>{cats.filter((c) => c.is_active).map((c) => <option key={c.id} value={c.name_en} />)}</datalist>
+    <Grid>
         <thead>
-          <tr className="bg-primary text-primary-foreground">
-            <th className="hidden w-10 border-e border-primary-foreground/20 px-1 py-2 text-center sm:table-cell">#</th>
-            <th className="w-[5.5rem] border-e border-primary-foreground/20 px-2 py-2 text-start sm:w-32">{t("date")}</th>
-            <th className="border-e border-primary-foreground/20 px-2 py-2 text-start">{t("description")}</th>
-            <th className="hidden w-40 border-e border-primary-foreground/20 px-2 py-2 text-start sm:table-cell">{t("category")}</th>
-            <th className="w-24 border-e border-primary-foreground/20 px-2 py-2 text-end sm:w-28">{t("amountRs")}</th>
-            <th className="hidden w-28 px-2 py-2 text-start sm:table-cell">{t("by")}</th>
-            <th className="no-print hidden w-16 sm:table-cell" />
+          <LetterRow cols={6} />
+          <tr>
+            <th className="rn hidden sm:table-cell">#</th>
+            <th className="w-[5.5rem] sm:w-36">{t("date")}</th>
+            <th>{t("description")}</th>
+            <th className="hidden w-44 sm:table-cell">{t("category")}</th>
+            <th className="n w-24 sm:w-32">{t("amountRs")}</th>
+            <th className="hidden w-32 sm:table-cell">{t("by")}</th>
+            <th className="no-print hidden w-14 sm:table-cell" />
           </tr>
         </thead>
         <tbody>
@@ -157,25 +158,21 @@ function Sheet({ direction, rows, cats, me, describe, categoryOf, ownerName, par
           {rows.map((x, i) => {
             const firstOfDay = i === 0 || rows[i - 1]!.entry_date !== x.entry_date;
             const free = isFree(x);
+            const setCat = async (v: string) => { if (v.trim() === categoryOf(x)) return; try { await update(x.id, { expense_category_id: await categoryId(v) }); } catch (e) { toast.error(errMsg(e)); } };
             return (
-              <tr key={x.id} className={`border-t ${firstOfDay && i > 0 ? "border-t-2 border-t-border" : ""} ${i % 2 ? "bg-muted/30" : ""}`}>
-                <td className="num hidden border-e px-1 text-center text-xs text-muted-foreground sm:table-cell">{i + 1}</td>
-                <td className="border-e p-0">
-                  {free ? (
-                    <CellInput type="date" className="px-1 text-xs sm:px-2 sm:text-sm" value={x.entry_date} dim={!firstOfDay} onCommit={(v) => v && v !== x.entry_date && update(x.id, { entry_date: v })} />
-                  ) : <span className={`num block px-2 ${firstOfDay ? "" : "text-muted-foreground/50"}`}>{fmtDate(x.entry_date)}</span>}
+              <tr key={x.id} className={firstOfDay && i > 0 ? "day-start" : ""}>
+                <td className="rn hidden sm:table-cell">{i + 1}</td>
+                <td className={free ? "c" : `num ${firstOfDay ? "" : "dim"}`}>
+                  {free ? <Cell type="date" value={x.entry_date} dim={!firstOfDay} className="px-1 text-xs sm:px-2 sm:text-[13px]" onCommit={(v) => v && update(x.id, { entry_date: v })} /> : fmtDate(x.entry_date)}
                 </td>
-                <td className="border-e p-0">
+                <td className={free ? "c" : ""}>
                   {free ? (
                     <>
-                      <CellInput value={x.note ?? ""} placeholder="—" onCommit={(v) => v !== (x.note ?? "") && update(x.id, { note: v.trim() || null })} />
-                      <div className="sm:hidden">
-                        <CellInput value={categoryOf(x)} list={listId} placeholder={t("category")} className="h-6 text-xs text-muted-foreground"
-                          onCommit={async (v) => { if (v.trim() === categoryOf(x)) return; try { await update(x.id, { expense_category_id: await categoryId(v) }); } catch (e) { toast.error(errMsg(e)); } }} />
-                      </div>
+                      <Cell value={x.note ?? ""} placeholder="—" onCommit={(v) => update(x.id, { note: v.trim() || null })} />
+                      <div className="sm:hidden"><Cell value={categoryOf(x)} list={listId} placeholder={t("category")} className="!h-6 text-[11px] text-muted-foreground" onCommit={setCat} /></div>
                     </>
                   ) : (
-                    <div className="flex items-center gap-1 px-2 py-1.5">
+                    <div className="flex items-center gap-1 py-1">
                       {x.party_id ? <Link href={`/party/${x.party_id}`} className="text-primary hover:underline">{partyName(x.party_id)}</Link> : null}
                       {x.sale_id ? <Link href={`/sales/${x.sale_id}`} className="text-xs text-muted-foreground underline">{t("invoice")}</Link> : null}
                       <span className="truncate text-muted-foreground">{x.note ? `— ${x.note}` : ""}</span>
@@ -183,20 +180,14 @@ function Sheet({ direction, rows, cats, me, describe, categoryOf, ownerName, par
                     </div>
                   )}
                 </td>
-                <td className="hidden border-e p-0 sm:table-cell">
-                  {free ? (
-                    <CellInput value={categoryOf(x)} list={listId} placeholder="—"
-                      onCommit={async (v) => { if (v.trim() === categoryOf(x)) return; try { await update(x.id, { expense_category_id: await categoryId(v) }); } catch (e) { toast.error(errMsg(e)); } }} />
-                  ) : <span className="block px-2 text-xs text-muted-foreground">{categoryOf(x)}</span>}
+                <td className={`hidden sm:table-cell ${free ? "c" : "ro text-xs"}`}>
+                  {free ? <Cell value={categoryOf(x)} list={listId} placeholder="—" onCommit={setCat} /> : categoryOf(x)}
                 </td>
-                <td className="border-e p-0">
-                  {free ? (
-                    <CellInput value={String(Number(x.amount))} numeric className="text-end font-semibold"
-                      onCommit={(v) => { const n = parseWhole(v); if (n && n > 0 && n !== Number(x.amount)) update(x.id, { amount: n }); }} />
-                  ) : <span className="num block px-2 text-end font-semibold">{fmt(Number(x.amount))}</span>}
+                <td className={free ? "c" : "n num font-semibold"}>
+                  {free ? <Cell numeric className="font-semibold" value={String(Number(x.amount))} onCommit={(v) => { const n = parseWhole(v); if (n && n > 0) update(x.id, { amount: n }); }} /> : fmt(Number(x.amount))}
                 </td>
-                <td className="hidden px-2 text-xs sm:table-cell">{ownerName(x.handler_user_id)}{x.method !== "cash" ? <span className="text-muted-foreground"> · {x.method}</span> : null}</td>
-                <td className="no-print hidden px-1 text-end whitespace-nowrap sm:table-cell">
+                <td className="hidden text-xs sm:table-cell">{ownerName(x.handler_user_id)}{x.method !== "cash" ? <span className="text-muted-foreground"> · {x.method}</span> : null}</td>
+                <td className="no-print hidden whitespace-nowrap px-1 text-end sm:table-cell">
                   {x.receipt_url && <button className="px-1" title={t("receipt")} onClick={() => openReceipt(x.receipt_url!).catch((e) => toast.error(errMsg(e)))}>📎</button>}
                   {free && <ConfirmButton size="sm" variant="outline" onConfirm={() => update(x.id, { deleted_at: new Date().toISOString() })}>×</ConfirmButton>}
                 </td>
@@ -204,39 +195,17 @@ function Sheet({ direction, rows, cats, me, describe, categoryOf, ownerName, par
             );
           })}
           <NewRow direction={direction} lastDate={rows.at(-1)?.entry_date} listId={listId} me={me} nextNo={rows.length + 1} categoryId={categoryId} onSaved={onChange} />
-          <tr className="border-t-2 border-primary bg-secondary font-bold">
-            <td colSpan={2} className="px-2 py-2 text-end sm:hidden">{t("total")}</td>
-            <td colSpan={4} className="hidden px-2 py-2 text-end sm:table-cell">{t("total")}</td>
-            <td className="num px-2 py-2 text-end">{fmt(total)}</td>
+          <tr className="total">
+            <td colSpan={2} className="n sm:hidden">{t("total")}</td>
+            <td colSpan={4} className="n hidden sm:table-cell">{t("total")}</td>
+            <td className="n num">{fmt(total)}</td>
             <td colSpan={2} className="hidden sm:table-cell" />
           </tr>
         </tbody>
-      </table>
-      {!loading && !rows.length && <div className="p-3"><Empty>{t("sheetEmpty")}</Empty></div>}
-    </div>
+    </Grid>
+    {!loading && !rows.length && <Empty>{t("sheetEmpty")}</Empty>}
     </div>
   );
-}
-
-/** A spreadsheet cell: saves when you leave it; Enter jumps to the next cell. */
-function CellInput({ value, onCommit, type = "text", numeric, className = "", placeholder, list, dim }: {
-  value: string; onCommit: (v: string) => void; type?: string; numeric?: boolean; className?: string; placeholder?: string; list?: string; dim?: boolean;
-}) {
-  const [v, setV] = useState(value);
-  useEffect(() => setV(value), [value]);
-  return (
-    <input data-cell type={type} list={list} value={v} placeholder={placeholder} inputMode={numeric ? "numeric" : undefined}
-      onChange={(e) => setV(e.target.value)} onBlur={() => onCommit(v)} onKeyDown={nextCellOnEnter}
-      className={`h-9 w-full bg-transparent px-2 outline-none focus:bg-primary/5 focus:ring-2 focus:ring-inset focus:ring-primary ${numeric ? "num" : ""} ${dim ? "text-muted-foreground/50 focus:text-foreground" : ""} ${className}`} />
-  );
-}
-
-function nextCellOnEnter(e: KeyboardEvent<HTMLInputElement>) {
-  if (e.key !== "Enter") return;
-  e.preventDefault();
-  const cells = Array.from(document.querySelectorAll<HTMLInputElement>("input[data-cell]"));
-  const i = cells.indexOf(e.currentTarget);
-  (cells[i + 1] ?? e.currentTarget).focus();
 }
 
 type NewRowProps = {
@@ -299,18 +268,17 @@ function NewRow({ nextNo, ...props }: NewRowProps & { nextNo: number }) {
   const { direction, listId } = props;
   const { f, setF, busy, descRef, date, by, save } = useNewRow(props);
   const onEnter = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") { e.preventDefault(); if (f.amount) save(); else nextCellOnEnter(e); }
+    if (e.key === "Enter" && f.amount) { e.preventDefault(); save(); }
   };
-  const cell = "h-9 w-full bg-transparent px-2 outline-none focus:bg-primary/5 focus:ring-2 focus:ring-inset focus:ring-primary";
   return (
-    <tr className="no-print hidden border-t-2 border-dashed border-primary/40 bg-primary/[0.03] sm:table-row">
-      <td className="num border-e px-1 text-center text-xs text-primary">{nextNo}</td>
-      <td className="border-e p-0"><input data-cell type="date" className={cell} value={date} onChange={(e) => setF({ ...f, date: e.target.value })} onKeyDown={onEnter} /></td>
-      <td className="border-e p-0"><input data-cell ref={descRef} className={cell} placeholder={t(direction === "out" ? "newKharchaPlaceholder" : "newReceivingPlaceholder")} value={f.desc} onChange={(e) => setF({ ...f, desc: e.target.value })} onKeyDown={onEnter} /></td>
-      <td className="border-e p-0"><input data-cell className={cell} list={listId} placeholder={t("category")} value={f.cat} onChange={(e) => setF({ ...f, cat: e.target.value })} onKeyDown={onEnter} /></td>
-      <td className="border-e p-0"><input data-cell className={`${cell} num text-end font-semibold`} inputMode="numeric" placeholder="0" value={f.amount} onChange={(e) => setF({ ...f, amount: e.target.value })} onKeyDown={onEnter} /></td>
-      <td className="p-0"><OwnerSelect className="h-9 rounded-none border-0 bg-transparent px-1 text-xs" value={by} onChange={(v) => setF((x) => ({ ...x, by: v }))} /></td>
-      <td className="px-1"><Button size="sm" className="h-8" disabled={busy || !f.amount} onClick={save}>{t("add")}</Button></td>
+    <tr className="new no-print hidden sm:table-row">
+      <td className="rn">{nextNo}</td>
+      <td className="c"><input className="cell" type="date" value={date} onChange={(e) => setF({ ...f, date: e.target.value })} onKeyDown={onEnter} /></td>
+      <td className="c"><input ref={descRef} className="cell" placeholder={t(direction === "out" ? "newKharchaPlaceholder" : "newReceivingPlaceholder")} value={f.desc} onChange={(e) => setF({ ...f, desc: e.target.value })} onKeyDown={onEnter} /></td>
+      <td className="c"><input className="cell" list={listId} placeholder={t("category")} value={f.cat} onChange={(e) => setF({ ...f, cat: e.target.value })} onKeyDown={onEnter} /></td>
+      <td className="c"><input className="cell n num font-semibold" inputMode="numeric" placeholder="0" value={f.amount} onChange={(e) => setF({ ...f, amount: e.target.value })} onKeyDown={onEnter} /></td>
+      <td className="c"><OwnerSelect className="cell text-xs" value={by} onChange={(v) => setF((x) => ({ ...x, by: v }))} /></td>
+      <td className="px-1"><Button size="sm" className="h-7" disabled={busy || !f.amount} onClick={save}>{t("add")}</Button></td>
     </tr>
   );
 }

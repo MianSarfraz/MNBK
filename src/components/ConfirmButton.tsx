@@ -8,15 +8,15 @@ import {
 import { Button } from "@/components/ui/button";
 import { useT } from "@/lib/i18n";
 
-export function ConfirmButton({ children, onConfirm, description, variant = "default", size = "default", disabled }: {
-  children: ReactNode; onConfirm: () => void; description?: string;
+export function ConfirmButton({ children, onConfirm, description, variant = "default", size = "default", disabled, id, className }: {
+  children: ReactNode; onConfirm: () => void; description?: string; id?: string; className?: string;
   variant?: "default" | "destructive" | "outline" | "secondary"; size?: "default" | "sm" | "lg"; disabled?: boolean;
 }) {
   const { t } = useT();
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
-        <Button variant={variant} size={size} disabled={disabled}>{children}</Button>
+        <Button id={id} className={className} variant={variant} size={size} disabled={disabled}>{children}</Button>
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>

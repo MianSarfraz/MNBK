@@ -114,7 +114,7 @@ export default function InvoicePage() {
           {sale.vehicle_no && <><dt className="text-muted-foreground">{t("vehicle")}</dt><dd className="num">{sale.vehicle_no}</dd></>}
           {sale.driver_name && <><dt className="text-muted-foreground">{t("driver")}</dt><dd>{sale.driver_name}</dd></>}
         </dl>
-        <table className="mt-4 w-full text-lg">
+        <table className="sheet">
           <thead><tr className="border-b-2 border-primary">
             <th className="p-1 text-start">{t("quality")}</th><th className="p-1">{t("bricks")}</th><th className="p-1">{t("rate")}</th><th className="p-1">{t("amount")}</th>{edit && <th />}
           </tr></thead>

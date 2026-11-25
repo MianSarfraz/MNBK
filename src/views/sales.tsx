@@ -64,8 +64,8 @@ export default function SalesList() {
         <Stat label={t("salesTotal")} value={total} money />
         <Stat label={t("receivedWithInvoice")} value={paid} money tone="good" />
       </div>
-      <div className="overflow-x-auto rounded-xl border bg-card">
-        <table className="w-full text-sm">
+      <div className="sheet-wrap">
+        <table className="sheet">
           <thead className="bg-secondary"><tr>
             <th className="p-2 text-start">#</th><th className="p-2 text-start">{t("date")}</th><th className="p-2 text-start">{t("customer")}</th>
             <th className="p-2 text-start">{t("vehicle")}</th><th className="p-2">{t("bricks")}</th><th className="p-2">{t("total")}</th><th className="p-2">{t("received")}</th>

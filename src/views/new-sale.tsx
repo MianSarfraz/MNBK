@@ -7,15 +7,23 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { fmt, useT } from "@/lib/i18n";
-import { amountFor, invoiceTotal, parseWhole } from "@/lib/kiln-math";
+import { amountFor, invoiceTotal, normalizeDigits, parseWhole } from "@/lib/kiln-math";
 import { errMsg, today, useLedgers, useParties, useQualities } from "@/lib/data";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { BalanceBadge } from "@/components/BalanceBadge";
+import { LetterRow, Sheet as Grid } from "@/components/sheet";
 import { DateInput, Field, MethodSelect, NumInput, OwnerSelect, PageHeader, Section, Select, type Method } from "@/components/kit";
 
 type Line = { quality: string; qty: string; rate: string };
+const BLANK: Line = { quality: "", qty: "", rate: "" };
+/** Keep exactly one empty line at the bottom, like a sheet's next row. */
+const withBlankLast = (ls: Line[]) => {
+  const out = ls.filter((l, i) => i === ls.length - 1 || l.quality || l.qty || l.rate);
+  const last = out.at(-1);
+  return last && (last.quality || last.qty || last.rate) ? [...out, { ...BLANK }] : out;
+};
 
 export default function NewSale() {
   const { t } = useT();
@@ -81,8 +89,9 @@ export default function NewSale() {
   const paidNow = parseWhole(pay.amount) ?? 0;
   const newBalance = totals.ok ? prevBalance - totals.total + paidNow : prevBalance;
 
-  function setLine(i: number, patch: Partial<Line>) {
-    setLines((ls) => ls.map((l, j) => {
+  function setLine(i: number, raw: Partial<Line>) {
+    const patch = { ...raw, ...(raw.qty !== undefined ? { qty: normalizeDigits(raw.qty) } : {}), ...(raw.rate !== undefined ? { rate: normalizeDigits(raw.rate) } : {}) };
+    setLines((prev) => withBlankLast(prev.map((l, j) => {
       if (j !== i) return l;
       const next = { ...l, ...patch };
       if (patch.quality && !l.rate) {
@@ -90,7 +99,7 @@ export default function NewSale() {
         if (last) next.rate = String(last);
       }
       return next;
-    }));
+    })));
   }
 
   async function save() {
@@ -137,20 +146,35 @@ export default function NewSale() {
       </Section>
 
       <Section title={t("items")}>
-        <div className="space-y-2">
-          {parsed.map((l, i) => (
-            <div key={i} className="grid grid-cols-2 items-end gap-2 rounded-lg border p-2 md:grid-cols-[2fr_1fr_1fr_1fr_auto]">
-              <Field label={t("quality")} className="col-span-2 md:col-span-1"><Select value={l.quality} onChange={(e) => setLine(i, { quality: e.target.value })}>
-                <option value="">—</option>{saleQualities.map((q) => <option key={q.id} value={q.id}>{q.name_en}</option>)}
-              </Select></Field>
-              <Field label={t("quantityBricks")}><NumInput value={l.qty} onChange={(v) => setLine(i, { qty: v })} /></Field>
-              <Field label={t("rate")}><NumInput value={l.rate} onChange={(v) => setLine(i, { rate: v })} /></Field>
-              <div className="pb-3 text-center"><div className="text-xs text-muted-foreground">{t("amount")}</div><div className="num text-lg font-bold">{l.q > 0 && l.r > 0 ? fmt(amountFor(l.q, l.r)) : "—"}</div></div>
-              <Button variant="outline" disabled={lines.length === 1} onClick={() => setLines(lines.filter((_, j) => j !== i))}>×</Button>
-            </div>
-          ))}
-          <Button variant="secondary" onClick={() => setLines([...lines, { quality: "", qty: "", rate: "" }])}>+ {t("addLine")}</Button>
-        </div>
+        <Grid minWidth={560}>
+          <thead>
+            <LetterRow cols={5} />
+            <tr><th className="rn">#</th><th>{t("quality")}</th><th className="n w-32">{t("quantityBricks")}</th><th className="n w-28">{t("rate")}</th><th className="n w-32">{t("amount")}</th><th className="w-10" /></tr>
+          </thead>
+          <tbody>
+            {parsed.map((l, i) => {
+              const blank = !l.quality && !l.qty && !l.rate;
+              const last = i === parsed.length - 1;
+              return (
+                <tr key={i} className={blank && last ? "new" : ""}>
+                  <td className="rn">{i + 1}</td>
+                  <td className="c"><select className="cell" value={l.quality} onChange={(e) => setLine(i, { quality: e.target.value })} aria-label={`${t("quality")} ${i + 1}`}>
+                    <option value="">{blank && last ? `+ ${t("addLine")}…` : "—"}</option>{saleQualities.map((q) => <option key={q.id} value={q.id}>{q.name_en}</option>)}
+                  </select></td>
+                  <td className="c"><input className="cell n num" inputMode="numeric" placeholder="0" value={l.qty} onChange={(e) => setLine(i, { qty: e.target.value })} aria-label={`${t("quantityBricks")} ${i + 1}`} /></td>
+                  <td className="c"><input className="cell n num" inputMode="numeric" placeholder="0" value={l.rate} onChange={(e) => setLine(i, { rate: e.target.value })} aria-label={`${t("rate")} ${i + 1}`} /></td>
+                  <td className="n num font-semibold">{l.q > 0 && l.r > 0 ? fmt(amountFor(l.q, l.r)) : ""}</td>
+                  <td className="px-1">{!(blank && last) && <Button variant="outline" size="sm" className="h-7" onClick={() => setLines(lines.filter((_, j) => j !== i))}>×</Button>}</td>
+                </tr>
+              );
+            })}
+            <tr className="total">
+              <td className="rn" /><td>{t("total")}</td>
+              <td className="n num">{fmt(totals.ok ? totals.bricks : 0)}</td><td />
+              <td className="n num">{fmt(totals.ok ? totals.gross : 0)}</td><td />
+            </tr>
+          </tbody>
+        </Grid>
         {warnings.length > 0 && (
           <div className="mt-3 rounded-lg border-2 border-destructive bg-destructive/10 p-3 text-destructive">
             <div className="font-bold">⚠ {t("stockWarning")}</div>

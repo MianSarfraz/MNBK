@@ -9,11 +9,11 @@ import type { Tables } from "@/integrations/supabase/types";
 import { fmt, fmtDate, useT } from "@/lib/i18n";
 import { amountAtRates, parseWhole, type Rate } from "@/lib/kiln-math";
 import { errMsg, myId, today, useParties, useQualities, useRates } from "@/lib/data";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ConfirmButton } from "@/components/ConfirmButton";
-import { KharchaCell } from "@/components/KharchaCell";
-import { clampDate, DateInput, Empty, Field, NumInput, PageHeader, Section, Select, Stat, WeekPicker, useWeekNav } from "@/components/kit";
+import { KharchaSheet } from "@/components/KharchaSheet";
+import { Cell, LetterRow, Sheet } from "@/components/sheet";
+import { clampDate, Empty, PageHeader, Stat, WeekPicker, useWeekNav } from "@/components/kit";
 
 type Stage = "rehra" | "nakasi";
 type Entry = Tables<"kiln_entries">;
@@ -71,7 +71,7 @@ export function KilnWeek({ stage }: { stage: Stage }) {
     refresh();
     return true;
   }
-  async function updateEntry(id: string, patch: { count?: number; deleted_at?: string }) {
+  async function updateEntry(id: string, patch: Partial<Pick<Entry, "count" | "deleted_at" | "entry_date" | "quality_id" | "source_party_id" | "notes">>) {
     const { error } = await supabase.from("kiln_entries").update(patch).eq("id", id);
     if (error) toast.error(error.message);
     refresh();
@@ -113,156 +113,164 @@ export function KilnWeek({ stage }: { stage: Stage }) {
   const made = (madeQ.data ?? []).reduce((s, e) => s + Number(e.confirmed_count ?? 0), 0);
 
 
+  const activeWorkers = rows.filter((w) => w.is_active);
+  const qualityOpts = (qualities.data ?? []).filter((q) => q.is_active && (stage === "rehra" || q.kind === "nakasi"));
+  const patheerOpts = (patheers.data ?? []).filter((p) => p.is_active);
+  const kharchaRows = totals.map(({ w, bricks, earn, kh, hasRate }) => ({ id: w.id, name: w.name, bricks, earn, suggested: kh, noRate: !hasRate }));
+  const sorted = entries.slice().sort((x, y) => x.entry_date.localeCompare(y.entry_date) || x.created_at.localeCompare(y.created_at));
+  const entryCols = stage === "rehra" ? 7 : 6;
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <PageHeader title={t(stage === "rehra" ? "rehraKhatta" : "nakasiKhatta")} sub={t(stage === "rehra" ? "rehraHelp" : "nakasiHelp")}
-        actions={<Link href={`/people/${stage}`} className="inline-flex h-10 items-center rounded-md border bg-card px-4">{t("workersAndLedgers")}</Link>} />
+        actions={<Link href={`/people/${stage}`} className="inline-flex h-9 items-center rounded-md border bg-card px-3 text-sm">{t("workersAndLedgers")}</Link>} />
       <WeekPicker nav={nav} />
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
         <Stat label={t(stage === "rehra" ? "loadedThisWeek" : "bakedThisWeek")} value={weekBricks} />
         <Stat label={t("earnings")} value={weekEarn} money />
         {stage === "rehra" && <Stat label={t("madeThisWeek")} value={made} />}
         {stage === "rehra" && <Stat label={t("madeMinusLoaded")} value={made - weekBricks} tone={made - weekBricks < 0 ? "bad" : undefined} />}
       </div>
 
-      {stage === "nakasi" && (
-        <label className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-          {t("dateForNewEntries")}
-          <input type="date" className="h-9 rounded-md border bg-card px-2 text-foreground" min={start} max={end} value={defaultDate} onChange={(e) => setCellDate(e.target.value)} />
-        </label>
-      )}
-      {stage === "nakasi" ? (
-        <div className="overflow-x-auto rounded-xl border bg-card">
-          <table className="w-full border-collapse text-sm">
-            <thead className="bg-secondary"><tr>
-              <th className="sticky start-0 z-10 bg-secondary p-2 text-start text-base">{t("nakasi")}</th>
-              {cols.map((q) => <th key={q.id} className="p-2 text-base">{q.name_en}</th>)}
-              <th className="p-2 text-base">{t("total")}</th><th className="p-2 text-base">{t("kharcha")}</th>
-            </tr></thead>
+      {!rows.length && <Empty>{t("addWorkersFirst")} — <Link href={`/people/${stage}`} className="text-primary underline">{t(stage)}</Link></Empty>}
+
+      {stage === "nakasi" && rows.length > 0 && (
+        <div className="space-y-1">
+          <label className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+            {t("dateForNewEntries")}
+            <input type="date" className="h-8 rounded-md border bg-card px-2 text-foreground" min={start} max={end} value={defaultDate} onChange={(e) => setCellDate(e.target.value)} />
+          </label>
+          <Sheet minWidth={160 + cols.length * 90 + 240} className="max-w-4xl">
+            <thead>
+              <LetterRow cols={cols.length + 3} />
+              <tr>
+                <th className="rn">#</th><th>{t("nakasi")}</th>
+                {cols.map((q) => <th key={q.id} className="n">{q.name_en}</th>)}
+                <th className="n w-28">{t("total")}</th><th className="n w-28">Rs</th>
+              </tr>
+            </thead>
             <tbody>
-              {totals.map(({ w, es, bricks, earn, kh, hasRate }) => (
-                <tr key={w.id} className="border-t align-top">
-                  <td className="sticky start-0 z-10 bg-card p-2 text-base font-bold"><Link href={`/party/${w.id}`} className="hover:underline">{w.name}</Link></td>
+              {totals.map(({ w, es, bricks, earn, hasRate }, i) => (
+                <tr key={w.id}>
+                  <td className="rn">{i + 1}</td>
+                  <td className="whitespace-nowrap font-medium"><Link href={`/party/${w.id}`} className="hover:underline">{w.name}</Link>{!hasRate && <span className="ms-1 text-[11px] text-destructive">{t("missingRate")}</span>}</td>
                   {cols.map((q) => {
                     const cell = es.filter((e) => e.quality_id === q.id);
                     const sum = cell.reduce((s, e) => s + Number(e.count), 0);
                     return (
-                      <td key={q.id} className="p-1">
-                        <Input key={`${w.id}${q.id}${sum}`} disabled={readOnly || cell.length > 1} className="num h-9 w-20 px-1 text-center" inputMode="numeric" defaultValue={sum || ""}
-                          title={cell.length > 1 ? t("multipleEntries") : undefined}
-                          onBlur={(ev) => setCell(w.id, q.id, ev.target.value, cell)} />
+                      <td key={q.id} className="c w-[5.5rem]" title={cell.length > 1 ? t("multipleEntries") : undefined}>
+                        <Cell numeric value={sum ? String(sum) : ""} disabled={readOnly || cell.length > 1} label={`${w.name} ${q.name_en}`}
+                          onCommit={(v) => setCell(w.id, q.id, v, cell)} />
                       </td>
                     );
                   })}
-                  <td className="p-2 text-center">
-                    <div className="num font-bold">{fmt(bricks)}</div>
-                    <div className="num font-bold text-primary">Rs {fmt(earn)}</div>
-                    {!hasRate && <div className="text-xs text-destructive">{t("missingRate")}</div>}
-                  </td>
-                  <td className="p-2 text-center"><KharchaCell amount={kh} disabled={readOnly || kh <= 0} onGive={(a, h, d) => giveKharcha(w.id, a, h, d)} /></td>
+                  <td className="n num font-semibold">{fmt(bricks)}</td>
+                  <td className="n num font-semibold text-primary">{fmt(earn)}</td>
                 </tr>
               ))}
-              <tr className="border-t-2 border-primary bg-secondary/50 font-bold">
-                <td className="sticky start-0 bg-secondary p-2">{t("total")}</td>
-                {cols.map((q) => <td key={q.id} className="num p-2 text-center">{fmt(entries.filter((e) => e.quality_id === q.id).reduce((s, e) => s + Number(e.count), 0))}</td>)}
-                <td className="num p-2 text-center">{fmt(weekBricks)}</td><td />
+              <tr className="total">
+                <td className="rn" /><td>{t("total")}</td>
+                {cols.map((q) => <td key={q.id} className="n num">{fmt(entries.filter((e) => e.quality_id === q.id).reduce((s, e) => s + Number(e.count), 0))}</td>)}
+                <td className="n num">{fmt(weekBricks)}</td><td className="n num">{fmt(weekEarn)}</td>
               </tr>
             </tbody>
-          </table>
-          {!rows.length && <div className="p-4"><Empty>{t("addWorkersFirst")}</Empty></div>}
+          </Sheet>
         </div>
-      ) : (
-        <>
-          <RehraForm workers={rows.filter((w) => w.is_active)} patheers={(patheers.data ?? []).filter((p) => p.is_active)} qualities={(qualities.data ?? []).filter((q) => q.is_active)}
-            defaultDate={defaultDate} disabled={readOnly}
-            onAdd={async (p) => { const ok = await insertEntry(p); if (ok && (p.entry_date < start || p.entry_date > end)) { nav.go(p.entry_date); toast.success(`${t("saved")} — ${fmtDate(p.entry_date)}`); } return ok; }} />
-          <div className="overflow-x-auto rounded-xl border bg-card">
-            <table className="w-full text-sm">
-              <thead className="bg-secondary"><tr>
-                <th className="p-2 text-start">{t("rehra")}</th><th className="p-2">{t("bricks")}</th><th className="p-2">{t("earnings")}</th><th className="p-2">{t("kharcha")}</th>
-              </tr></thead>
-              <tbody>
-                {totals.map(({ w, bricks, earn, kh, hasRate }) => (
-                  <tr key={w.id} className="border-t align-top">
-                    <td className="p-2 font-bold"><Link href={`/party/${w.id}`} className="hover:underline">{w.name}</Link></td>
-                    <td className="num p-2 text-center">{fmt(bricks)}</td>
-                    <td className="num p-2 text-center">Rs {fmt(earn)}{!hasRate && <div className="text-xs text-destructive">{t("missingRate")}</div>}</td>
-                    <td className="p-2 text-center"><KharchaCell amount={kh} disabled={readOnly || kh <= 0} onGive={(a, h, d) => giveKharcha(w.id, a, h, d)} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {!rows.length && <div className="p-4"><Empty>{t("addWorkersFirst")}</Empty></div>}
-          </div>
-        </>
       )}
 
-      <Section title={t("entries")}>
-        {!entries.length ? <Empty /> : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead><tr className="text-muted-foreground">
-                <th className="p-2 text-start">{t("date")}</th><th className="p-2 text-start">{t("name")}</th><th className="p-2 text-start">{t("quality")}</th>
-                {stage === "rehra" && <th className="p-2 text-start">{t("sourcePatheer")}</th>}
-                <th className="p-2">{t("bricks")}</th><th className="p-2 text-start">{t("note")}</th><th />
-              </tr></thead>
-              <tbody>
-                {entries.map((e) => (
-                  <tr key={e.id} className="border-t">
-                    <td className="num p-2">{fmtDate(e.entry_date)}</td>
-                    <td className="p-2">{pName(e.party_id)}</td>
-                    <td className="p-2">{qName(e.quality_id)}</td>
-                    {stage === "rehra" && <td className="p-2">{pName(e.source_party_id)}</td>}
-                    <td className="p-1 text-center">
-                      <Input key={`${e.id}${e.count}`} disabled={readOnly} className="num mx-auto h-10 w-28 text-center" inputMode="numeric" defaultValue={Number(e.count)}
-                        onBlur={(ev) => { const v = parseWhole(ev.target.value); if (v && v > 0 && v !== Number(e.count)) updateEntry(e.id, { count: v }); }} />
+      {rows.length > 0 && (
+        <div className="space-y-1">
+          <div className="text-sm font-semibold">{t(stage === "rehra" ? "loadsSheet" : "entries")}</div>
+          <Sheet minWidth={stage === "rehra" ? 860 : 700}>
+            <thead>
+              <LetterRow cols={entryCols} />
+              <tr>
+                <th className="rn">#</th><th className="w-36">{t("date")}</th><th>{t(stage)}</th>
+                <th>{t("quality")}</th>{stage === "rehra" && <th>{t("sourcePatheer")}</th>}
+                <th className="n w-28">{t("bricksCol")}</th><th>{t("note")}</th><th className="w-10" />
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map((e, i) => (
+                <tr key={e.id} className={i > 0 && sorted[i - 1]!.entry_date !== e.entry_date ? "day-start" : ""}>
+                  <td className="rn">{i + 1}</td>
+                  <td className="c"><Cell type="date" value={e.entry_date} disabled={readOnly} dim={i > 0 && sorted[i - 1]!.entry_date === e.entry_date}
+                    onCommit={(v) => { if (v) { updateEntry(e.id, { entry_date: v }); if (v < start || v > end) nav.go(v); } }} /></td>
+                  <td className="whitespace-nowrap">{pName(e.party_id)}</td>
+                  <td className="c">
+                    <select className="cell" value={e.quality_id ?? ""} disabled={readOnly} onChange={(ev) => updateEntry(e.id, { quality_id: ev.target.value || null })}>
+                      {stage === "rehra" && <option value="">—</option>}
+                      {qualityOpts.map((q) => <option key={q.id} value={q.id}>{q.name_en}</option>)}
+                    </select>
+                  </td>
+                  {stage === "rehra" && (
+                    <td className="c">
+                      <select className="cell" value={e.source_party_id ?? ""} disabled={readOnly} onChange={(ev) => updateEntry(e.id, { source_party_id: ev.target.value || null })}>
+                        <option value="">—</option>{patheerOpts.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                      </select>
                     </td>
-                    <td className="p-2 text-sm text-muted-foreground">{e.notes}</td>
-                    <td className="p-1">{!readOnly && <ConfirmButton size="sm" variant="outline" onConfirm={() => updateEntry(e.id, { deleted_at: new Date().toISOString() })}>{t("remove")}</ConfirmButton>}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Section>
+                  )}
+                  <td className="c"><Cell numeric value={String(Number(e.count))} disabled={readOnly}
+                    onCommit={(v) => { const n = parseWhole(v); if (n && n > 0) updateEntry(e.id, { count: n }); }} /></td>
+                  <td className="c"><Cell value={e.notes ?? ""} placeholder="—" disabled={readOnly} onCommit={(v) => updateEntry(e.id, { notes: v.trim() || null })} /></td>
+                  <td className="px-1">{!readOnly && <ConfirmButton size="sm" variant="outline" onConfirm={() => updateEntry(e.id, { deleted_at: new Date().toISOString() })}>×</ConfirmButton>}</td>
+                </tr>
+              ))}
+              {!readOnly && (
+                <KilnNewRow stage={stage} n={sorted.length + 1} workers={activeWorkers} qualities={qualityOpts} patheers={patheerOpts} defaultDate={sorted.at(-1)?.entry_date ?? defaultDate}
+                  onAdd={async (p) => { const ok = await insertEntry(p); if (ok && (p.entry_date < start || p.entry_date > end)) { nav.go(p.entry_date); toast.success(`${t("saved")} — ${fmtDate(p.entry_date)}`); } return ok; }} />
+              )}
+              <tr className="total">
+                <td className="rn" /><td colSpan={stage === "rehra" ? 4 : 3}>{t("total")}</td>
+                <td className="n num">{fmt(weekBricks)}</td><td colSpan={2} />
+              </tr>
+            </tbody>
+          </Sheet>
+        </div>
+      )}
+
+      <KharchaSheet rows={kharchaRows} readOnly={readOnly} onGive={giveKharcha} />
     </div>
   );
 }
 
-function RehraForm({ workers, patheers, qualities, defaultDate, disabled, onAdd }: {
-  workers: Tables<"parties">[]; patheers: Tables<"parties">[]; qualities: Tables<"qualities">[];
-  defaultDate: string; disabled: boolean;
-  onAdd: (p: { party_id: string; count: number; quality_id: string | null; source_party_id: string | null; entry_date: string; notes: string | null }) => Promise<boolean>;
+type NewKiln = { party_id: string; count: number; quality_id: string | null; source_party_id: string | null; entry_date: string; notes: string | null };
+
+/** Blank row at the bottom of the entries sheet: any worker, any date. */
+function KilnNewRow({ stage, n, workers, qualities, patheers, defaultDate, onAdd }: {
+  stage: "rehra" | "nakasi"; n: number; workers: Tables<"parties">[]; qualities: Tables<"qualities">[]; patheers: Tables<"parties">[];
+  defaultDate: string; onAdd: (p: NewKiln) => Promise<boolean>;
 }) {
   const { t } = useT();
-  const [f, setF] = useState({ party: "", count: "", quality: "", source: "", date: "", note: "" });
+  const [f, setF] = useState({ date: "", party: "", quality: "", source: "", count: "", note: "" });
   const date = f.date || defaultDate;
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
+  const quality = f.quality || (stage === "nakasi" ? qualities[0]?.id ?? "" : "");
+  async function save() {
     const count = parseWhole(f.count);
     if (!f.party) return void toast.error(t("chooseWorker"));
     if (!count || count <= 0) return void toast.error(t("wholeNumbers"));
-    if (await onAdd({ party_id: f.party, count, quality_id: f.quality || null, source_party_id: f.source || null, entry_date: date, notes: f.note.trim() || null })) {
+    if (await onAdd({ party_id: f.party, count, quality_id: quality || null, source_party_id: f.source || null, entry_date: date, notes: f.note.trim() || null })) {
       setF({ ...f, count: "", note: "" });
     }
   }
+  const enter = (e: React.KeyboardEvent) => { if (e.key === "Enter" && f.count) { e.preventDefault(); save(); } };
   return (
-    <form onSubmit={submit} className="grid gap-3 rounded-xl border bg-card p-4 md:grid-cols-6">
-      <Field label={t("rehra")} className="md:col-span-2"><Select value={f.party} onChange={(e) => setF({ ...f, party: e.target.value })} disabled={disabled}>
-        <option value="">—</option>{workers.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
-      </Select></Field>
-      <Field label={t("bricksLoaded")}><NumInput value={f.count} onChange={(v) => setF({ ...f, count: v })} disabled={disabled} /></Field>
-      <Field label={t("date")}><DateInput value={date} onChange={(v) => setF({ ...f, date: v })} /></Field>
-      <Field label={`${t("quality")} (${t("optional")})`}><Select value={f.quality} onChange={(e) => setF({ ...f, quality: e.target.value })} disabled={disabled}>
-        <option value="">—</option>{qualities.map((q) => <option key={q.id} value={q.id}>{q.name_en}</option>)}
-      </Select></Field>
-      <Field label={`${t("sourcePatheer")} (${t("optional")})`}><Select value={f.source} onChange={(e) => setF({ ...f, source: e.target.value })} disabled={disabled}>
+    <tr className="new">
+      <td className="rn">{n}</td>
+      <td className="c"><input className="cell" type="date" value={date} onChange={(e) => setF({ ...f, date: e.target.value })} /></td>
+      <td className="c"><select className="cell" value={f.party} onChange={(e) => setF({ ...f, party: e.target.value })} aria-label={t(stage)}>
+        <option value="">{t("chooseWorker")}</option>{workers.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
+      </select></td>
+      <td className="c"><select className="cell" value={quality} onChange={(e) => setF({ ...f, quality: e.target.value })}>
+        {stage === "rehra" && <option value="">—</option>}{qualities.map((q) => <option key={q.id} value={q.id}>{q.name_en}</option>)}
+      </select></td>
+      {stage === "rehra" && <td className="c"><select className="cell" value={f.source} onChange={(e) => setF({ ...f, source: e.target.value })}>
         <option value="">—</option>{patheers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-      </Select></Field>
-      <Field label={t("note")} className="md:col-span-5"><Input className="h-10" value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} disabled={disabled} /></Field>
-      <div className="flex items-end"><Button size="lg" className="w-full" disabled={disabled}>{t("add")}</Button></div>
-    </form>
+      </select></td>}
+      <td className="c"><input className="cell n num" inputMode="numeric" placeholder="0" value={f.count} onChange={(e) => setF({ ...f, count: e.target.value })} onKeyDown={enter} aria-label={t("bricks")} /></td>
+      <td className="c"><input className="cell" placeholder={t("note")} value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} onKeyDown={enter} /></td>
+      <td className="px-1"><Button size="sm" className="h-7" disabled={!f.count || !f.party} onClick={save}>{t("add")}</Button></td>
+    </tr>
   );
 }
