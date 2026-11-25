@@ -108,7 +108,7 @@ export function PartyList({ kind }: { kind: PartyKind }) {
           </div>
           {!shown.length && <Empty />}
           {shown.map((p) => (
-            <Link key={p.id} href={`/party/${p.id}`} className={`flex items-center justify-between rounded-xl border bg-card p-4 hover:border-primary ${p.is_active ? "" : "opacity-60"}`}>
+            <Link key={p.id} href={kind === "customer" ? `/customers/${p.id}` : `/party/${p.id}`} className={`flex items-center justify-between rounded-xl border bg-card p-4 hover:border-primary ${p.is_active ? "" : "opacity-60"}`}>
               <div>
                 <div className="text-lg font-bold">{p.name}</div>
                 <div className="text-sm text-muted-foreground">

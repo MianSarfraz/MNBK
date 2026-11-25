@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import SalesList from "@/views/sales";
+import SalesRegister from "@/views/sales-register";
 
-export const metadata: Metadata = { title: "Sales", description: "Sales invoices and receipts." };
+export const metadata: Metadata = { title: "Sales register", description: "Every sale, one row per brick type, with stock checks." };
 
 export default function Page() {
-  return <SalesList />;
+  return <SalesRegister />;
 }

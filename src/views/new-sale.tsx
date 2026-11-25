@@ -57,7 +57,8 @@ export default function NewSale() {
   const [pay, setPay] = useState({ amount: "", method: "cash" as Method, handler: "" });
   const [busy, setBusy] = useState(false);
 
-  const saleQualities = (qualities.data ?? []).filter((q) => q.kind === "sale" && q.is_active);
+  // The seven brick types — the same list used for production and stock.
+  const saleQualities = (qualities.data ?? []).filter((q) => q.kind === "nakasi" && q.is_active).sort((a, b) => a.sort_order - b.sort_order);
   const qById = new Map((qualities.data ?? []).map((q) => [q.id, q]));
   const parsed = lines.map((l) => ({ ...l, q: parseWhole(l.qty) ?? 0, r: parseWhole(l.rate) ?? 0 }));
   const valid = parsed.filter((l) => l.quality && l.q > 0 && l.r > 0);
@@ -72,7 +73,8 @@ export default function NewSale() {
   const warnings = useMemo(() => {
     const need = new Map<string, number>();
     for (const l of valid) {
-      const sq = qById.get(l.quality)?.stock_quality_id;
+      const q = qById.get(l.quality);
+      const sq = q?.kind === "nakasi" ? q.id : q?.stock_quality_id;
       if (sq) need.set(sq, (need.get(sq) ?? 0) + l.q);
     }
     const out: string[] = [];
@@ -86,8 +88,11 @@ export default function NewSale() {
   }, [valid, stockQ.data]);
 
   const prevBalance = Number((ledgers.data ?? []).find((l) => l.party_id === h.customer)?.balance ?? 0);
-  const paidNow = parseWhole(pay.amount) ?? 0;
-  const newBalance = totals.ok ? prevBalance - totals.total + paidNow : prevBalance;
+  const isCash = !!(customers.data ?? []).find((c) => c.id === h.customer)?.is_cash;
+  const paidNow = isCash ? 0 : parseWhole(pay.amount) ?? 0;
+  // Nakad Bikri is paid in full automatically, so its balance does not move.
+  const cashAdj = isCash && totals.ok ? totals.total : 0;
+  const newBalance = totals.ok ? prevBalance - totals.total + paidNow + cashAdj : prevBalance;
 
   function setLine(i: number, raw: Partial<Line>) {
     const patch = { ...raw, ...(raw.qty !== undefined ? { qty: normalizeDigits(raw.qty) } : {}), ...(raw.rate !== undefined ? { rate: normalizeDigits(raw.rate) } : {}) };
@@ -179,6 +184,7 @@ export default function NewSale() {
           <div className="mt-3 rounded-lg border-2 border-destructive bg-destructive/10 p-3 text-destructive">
             <div className="font-bold">⚠ {t("stockWarning")}</div>
             {warnings.map((w) => <div key={w} className="num">{w}</div>)}
+            <div className="mt-1 text-sm">{t("reduceQtyOrAddStock")}</div>
           </div>
         )}
       </Section>
@@ -196,17 +202,18 @@ export default function NewSale() {
             </>) : <div className="text-destructive">{totals.error}</div>}
           </div>
         </div>
+        {isCash ? <div className="mt-4 rounded-md border border-success/40 bg-success/10 p-2 text-sm text-success">{t("cashCustomerHelp")}</div> : (
         <div className="mt-4 grid gap-3 border-t pt-4 md:grid-cols-4">
           <Field label={t("receivedNow")}><NumInput value={pay.amount} onChange={(v) => setPay({ ...pay, amount: v })} placeholder="0" /></Field>
           <Field label={t("method")}><MethodSelect value={pay.method} onChange={(v) => setPay({ ...pay, method: v })} /></Field>
           <Field label={t("receivedBy")}><OwnerSelect value={pay.handler} onChange={(v) => setPay((p) => ({ ...p, handler: v }))} /></Field>
           {totals.ok && <Button variant="outline" className="mt-auto h-10" onClick={() => setPay({ ...pay, amount: String(totals.total) })}>{t("fullPayment")}</Button>}
-        </div>
+        </div>)}
         {h.customer && totals.ok && (
           <div className="mt-3 text-lg">{t("balanceAfter")}: <span className="num font-bold">{fmt(Math.abs(newBalance))}</span> <BalanceBadge balance={newBalance} kind="customer" /></div>
         )}
         <div className="mt-4">
-          <ConfirmButton size="lg" onConfirm={save} disabled={busy || !valid.length || !h.customer}
+          <ConfirmButton size="lg" onConfirm={save} disabled={busy || !valid.length || !h.customer || warnings.length > 0}
             description={`${t("invoiceTotal")}: Rs ${fmt(totals.ok ? totals.total : 0)}${warnings.length ? ` — ⚠ ${t("stockWarning")}` : ""}`}>
             {t("saveInvoice")}
           </ConfirmButton>

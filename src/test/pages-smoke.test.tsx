@@ -46,7 +46,12 @@ const DB: Record<string, Record<string, unknown>[]> = {
     { party_id: P1, party_kind: "patheer", balance: 12600 },
     { party_id: C1, party_kind: "customer", balance: -46000 },
   ],
-  finished_stock: [{ quality_id: QA, name_en: "Awal", name_ur: "Awal", category: "normal", produced: 30000, sold: 10000, adjusted: 0, balance: 20000 }],
+  finished_stock: [{ quality_id: QA, name_en: "Awal", name_ur: "Awal", category: "normal", sort_order: 1, is_active: true, opening: 50000, produced: 30000, sold: 10000, adjusted: 0, balance: 70000 }],
+  customer_accounts: [
+    { party_id: C1, ref_no: 1, name: "Bashir", phone: "0300", address: null, notes: null, is_cash: false, is_active: true, opening_due: 1000, bricks: 10000, purchases: 145000, sales_count: 1, payments: 100000, adjustments: 0, outstanding: 46000, last_sale: "2026-11-14" },
+    { party_id: "cash-1", ref_no: 2, name: "Nakad Bikri", phone: null, address: null, notes: null, is_cash: true, is_active: true, opening_due: 0, bricks: 2000, purchases: 30000, sales_count: 1, payments: 30000, adjustments: 0, outstanding: 0, last_sale: "2026-11-14" },
+  ],
+  sale_lines: [{ item_id: "si1", sale_id: SALE, invoice_no: 1, entry_date: "2026-11-14", customer_id: C1, vehicle_no: "ABC-1", driver_name: "D", note: null, quality_id: QA, quantity: 10000, rate_per_1000: 14500, amount: 145000, season_id: S1 }],
   raw_stock: [{ made: 48500, loaded: 40000, adjusted: 0, balance: 8500 }],
   stock_adjustments: [],
   cash_counts: [],
@@ -107,10 +112,13 @@ async function viewFor(path: string) {
   if (seg[0] === "party" || (seg[0] === "patheer" && seg[1])) { nav.params = { id: seg[1]! }; return v(import("@/views/party")); }
   if (seg[0] === "people") { nav.params = { kind: seg[1]! }; return v(import("@/views/people")); }
   if (seg[0] === "sales" && seg[1] === "new") return v(import("@/views/new-sale"));
+  if (seg[0] === "sales" && seg[1] === "invoices") return v(import("@/views/sales"));
+  if (seg[0] === "customers" && seg[1]) { nav.params = { id: seg[1] }; return v(import("@/views/customer")); }
+  if (seg[0] === "stock" && seg[1] === "opening") return v(import("@/views/opening-stock"));
   if (seg[0] === "sales" && seg[1]) { nav.params = { id: seg[1] }; return v(import("@/views/invoice")); }
   if (seg[0] === "patheer") { const { PartyList } = await import("@/components/PartyList"); return () => <PartyList kind="patheer" />; }
   if (seg[0] === "rehra" || seg[0] === "nakasi") { const { KilnWeek } = await import("@/components/KilnWeek"); const st = seg[0]; return () => <KilnWeek stage={st} />; }
-  const map: Record<string, string> = { dashboard: "dashboard", weekly: "weekly", sales: "sales", stock: "stock", expenses: "expenses", owners: "owners", reports: "reports", history: "history", seasons: "seasons", qualities: "qualities" };
+  const map: Record<string, string> = { dashboard: "dashboard", weekly: "weekly", sales: "sales-register", payments: "payments", customers: "customers", production: "production", "sales-reports": "sales-reports", stock: "stock", expenses: "expenses", owners: "owners", reports: "reports", history: "history", seasons: "seasons", qualities: "qualities" };
   return v(import(`@/views/${map[seg[0]!]}.tsx`));
 }
 
@@ -125,7 +133,14 @@ async function mount(path: string) {
 }
 
 const PAGES: [string, RegExp][] = [
-  ["/dashboard", /This week/],
+  ["/dashboard", /Stock by brick type/],
+  ["/payments", /Payments register/],
+  ["/customers", /C-001/],
+  [`/customers/${C1}`, /Purchase history/],
+  ["/production", /Production register/],
+  ["/stock/opening", /Opening quantity/],
+  ["/sales-reports", /Sales by brick type/],
+  ["/sales/invoices", /Bashir/],
   ["/weekly", /Add entry for any date/],
   ["/patheer", /Akram/],
   ["/rehra", /Rehra khatta/],
@@ -133,7 +148,7 @@ const PAGES: [string, RegExp][] = [
   ["/sales", /Bashir/],
   ["/sales/new", /Save invoice/],
   [`/sales/${SALE}`, /Invoice total/],
-  ["/stock", /Finished stock/],
+  ["/stock", /Stock summary/],
   ["/expenses", /Expense khatta/],
   ["/owners", /Between the brothers|Owners/],
   ["/reports", /Profit & loss/],
@@ -230,6 +245,28 @@ describe("expense khatta sheet", () => {
     fireEvent.keyDown(screen.getAllByPlaceholderText("0").at(-1)!, { key: "Enter" });
     await waitFor(() => expect(WRITES.some((w) => w.table === "expense_categories")).toBe(true), { timeout: 4000 });
     expect(WRITES.find((w) => w.table === "expense_categories")!.payload).toMatchObject({ name_en: "Home" });
+    spy.mockRestore();
+  });
+});
+
+describe("sales register", () => {
+  it("blocks selling more than the brick type's stock, and saves a valid sale with one line", async () => {
+    WRITES.length = 0;
+    const { spy } = await mount("/sales");
+    const selects = await screen.findAllByLabelText("Customer", {}, { timeout: 4000 });
+    // Wait for the brick types (with their stock) to load into the new row's drop-down.
+    await waitFor(() => expect((screen.getAllByLabelText("Brick type").at(-1) as HTMLSelectElement).innerHTML).toContain("Awal (70,000)"), { timeout: 4000 });
+    fireEvent.change(selects.at(-1)!, { target: { value: C1 } });
+    fireEvent.change(screen.getAllByLabelText("Brick type").at(-1)!, { target: { value: QA } });
+    const qty = screen.getAllByLabelText("Quantity").at(-1)!;
+    fireEvent.change(qty, { target: { value: "70001" } }); // stock is 70,000
+    fireEvent.change(screen.getAllByLabelText("Rate / 1,000").at(-1)!, { target: { value: "18000" } });
+    const add = screen.getAllByText("Add").at(-1)!;
+    expect(add).toBeDisabled();
+    expect(qty).toHaveAttribute("title", expect.stringMatching(/Not enough stock.*70,000/));
+    fireEvent.change(qty, { target: { value: "5000" } });
+    expect(screen.getAllByText("90,000").length).toBeGreaterThan(0); // 5,000 × 18,000 / 1,000
+    expect(add).not.toBeDisabled();
     spy.mockRestore();
   });
 });

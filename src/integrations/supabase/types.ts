@@ -85,6 +85,9 @@ export type Database = {
       }
       parties: {
         Row: {
+          notes: string | null
+          is_cash: boolean
+          ref_no: number
           address: string | null
           monthly_salary: number
           updated_by: string | null
@@ -102,6 +105,9 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          notes?: string | null
+          is_cash?: boolean
+          ref_no?: number
           address?: string | null
           monthly_salary?: number
           updated_by?: string | null
@@ -119,6 +125,9 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          notes?: string | null
+          is_cash?: boolean
+          ref_no?: number
           address?: string | null
           monthly_salary?: number
           updated_by?: string | null
@@ -377,6 +386,8 @@ export type Database = {
       }
       transactions: {
         Row: {
+          reference: string | null
+          ref_no: number
           amount: number
           category: string
           created_at: string
@@ -400,6 +411,8 @@ export type Database = {
           week_id: string | null
         }
         Insert: {
+          reference?: string | null
+          ref_no?: number
           amount: number
           category?: string
           created_at?: string
@@ -423,6 +436,8 @@ export type Database = {
           week_id?: string | null
         }
         Update: {
+          reference?: string | null
+          ref_no?: number
           amount?: number
           category?: string
           created_at?: string
@@ -576,6 +591,7 @@ export type Database = {
       }
       kiln_entries: {
         Row: {
+          firing_ref: string | null
           count: number
           created_at: string
           created_by: string
@@ -583,7 +599,7 @@ export type Database = {
           entry_date: string
           id: string
           notes: string | null
-          party_id: string
+          party_id: string | null
           quality_id: string | null
           season_id: string
           source_party_id: string | null
@@ -593,6 +609,7 @@ export type Database = {
           week_id: string
         }
         Insert: {
+          firing_ref?: string | null
           count: number
           created_at?: string
           created_by?: string
@@ -600,7 +617,7 @@ export type Database = {
           entry_date: string
           id?: string
           notes?: string | null
-          party_id: string
+          party_id?: string | null
           quality_id?: string | null
           season_id?: string
           source_party_id?: string | null
@@ -610,6 +627,7 @@ export type Database = {
           week_id?: string
         }
         Update: {
+          firing_ref?: string | null
           count?: number
           created_at?: string
           created_by?: string
@@ -617,7 +635,7 @@ export type Database = {
           entry_date?: string
           id?: string
           notes?: string | null
-          party_id?: string
+          party_id?: string | null
           quality_id?: string | null
           season_id?: string
           source_party_id?: string | null
@@ -765,6 +783,7 @@ export type Database = {
       }
       stock_adjustments: {
         Row: {
+          is_opening: boolean
           created_at: string
           created_by: string
           deleted_at: string | null
@@ -779,6 +798,7 @@ export type Database = {
           updated_by: string | null
         }
         Insert: {
+          is_opening?: boolean
           created_at?: string
           created_by?: string
           deleted_at?: string | null
@@ -793,6 +813,7 @@ export type Database = {
           updated_by?: string | null
         }
         Update: {
+          is_opening?: boolean
           created_at?: string
           created_by?: string
           deleted_at?: string | null
@@ -810,16 +831,40 @@ export type Database = {
       }
     }
     Views: {
+      customer_accounts: {
+        Row: {
+          address: string | null
+          adjustments: number | null
+          bricks: number | null
+          is_active: boolean | null
+          is_cash: boolean | null
+          last_sale: string | null
+          name: string | null
+          notes: string | null
+          opening_due: number | null
+          outstanding: number | null
+          party_id: string | null
+          payments: number | null
+          phone: string | null
+          purchases: number | null
+          ref_no: number | null
+          sales_count: number | null
+        }
+        Relationships: []
+      }
       finished_stock: {
         Row: {
           adjusted: number | null
           balance: number | null
           category: Database["public"]["Enums"]["quality_category"] | null
+          is_active: boolean | null
           name_en: string | null
           name_ur: string | null
+          opening: number | null
           produced: number | null
           quality_id: string | null
           sold: number | null
+          sort_order: number | null
         }
         Relationships: []
       }
@@ -852,6 +897,24 @@ export type Database = {
           balance: number | null
           loaded: number | null
           made: number | null
+        }
+        Relationships: []
+      }
+      sale_lines: {
+        Row: {
+          amount: number | null
+          customer_id: string | null
+          driver_name: string | null
+          entry_date: string | null
+          invoice_no: number | null
+          item_id: string | null
+          note: string | null
+          quality_id: string | null
+          quantity: number | null
+          rate_per_1000: number | null
+          sale_id: string | null
+          season_id: string | null
+          vehicle_no: string | null
         }
         Relationships: []
       }

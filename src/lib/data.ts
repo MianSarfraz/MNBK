@@ -158,3 +158,44 @@ export async function openReceipt(path: string) {
   if (error) throw error;
   window.open(data.signedUrl, "_blank", "noopener");
 }
+
+// ---------- Sales & stock ----------
+/** The active brick types (Awal, Awal Machine, Doum, Tirak, 9t, 9t Doum, 9t Tirak), in order. */
+export function useBrickTypes() {
+  const q = useQualities();
+  return { ...q, data: (q.data ?? []).filter((x) => x.kind === "nakasi" && x.is_active).sort((a, b) => a.sort_order - b.sort_order) };
+}
+
+export function useStock() {
+  return useQuery({
+    queryKey: ["finished-stock"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("finished_stock").select("*").order("sort_order");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
+export function useCustomerAccounts() {
+  return useQuery({
+    queryKey: ["customer-accounts"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("customer_accounts").select("*").order("ref_no");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
+export function useSaleLines(from: string, to: string) {
+  return useQuery({
+    queryKey: ["sale-lines", from, to],
+    queryFn: () => fetchAll<import("@/integrations/supabase/types").Tables<"sale_lines">>((a, b) =>
+      supabase.from("sale_lines").select("*").gte("entry_date", from).lte("entry_date", to).order("entry_date").order("invoice_no").range(a, b)),
+  });
+}
+
+export const saleId = (n: number | null | undefined) => (n == null ? "—" : `S-${String(n).padStart(4, "0")}`);
+export const paymentId = (n: number | null | undefined) => (n == null ? "—" : `P-${String(n).padStart(4, "0")}`);
+export const customerId = (n: number | null | undefined) => (n == null ? "—" : `C-${String(n).padStart(3, "0")}`);

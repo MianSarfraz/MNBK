@@ -7,17 +7,22 @@ Stack: Next.js 15 (App Router, React 19, TypeScript), Supabase (Postgres + auth 
 
 ## Screens
 
+**Sales & stock (main)**
+
 | Route | What it does |
 | --- | --- |
-| `/weekly` | Patheer register: estimated → confirmed per day, earnings, weekly kharcha. Autosaves; unsaved cells are queued on the device and retried. |
-| `/rehra`, `/nakasi` | Weekly loads into / baked output out of the kiln, earnings and kharcha per worker. |
-| `/people/[kind]`, `/party/[id]` | Every person (patheer, rehra, nakasi, employee, customer, vendor): balance, running ledger, period statements (week / month / season / custom), settle-now, payments, rates, salary posting, print / PDF. |
-| `/sales`, `/sales/new`, `/sales/[id]` | Multi-quality invoices with vehicle / driver, money received now, stock warning, printable Urdu invoice, later payments. |
-| `/stock` | Finished stock per quality (nakasi − sales ± adjustments), raw stock at the yard (confirmed − loaded ± adjustments). |
-| `/expenses` | The central transactions table: every payment in and out, expenses with categories and receipt photos, owner transfers. |
-| `/owners` | Each brother's paid / received / net, 50/50 settlement between them, cash-in-hand vs counted cash. |
-| `/reports` | Season profit & loss, outstanding balances, statements, Excel export, one-click full export (JSON + Excel). |
-| `/history` | Audit log of every change with old / new values. |
+| `/dashboard` | Stock per brick type, today's / this month's sales, outstanding, top customers, charts. |
+| `/sales` | Sales register sheet: one row per sale line (S-0001…), stock checked before saving; Nakad Bikri auto-paid. |
+| `/payments` | Payments register sheet (P-0001…): customer, amount, method, reference. |
+| `/customers`, `/customers/[id]` | Customer master (C-001…, no duplicates) and each customer's purchases, payments and outstanding / advance. |
+| `/stock`, `/stock/opening`, `/production` | Stock summary per brick type; opening stock; production register by kiln firing. |
+| `/sales-reports` | Sales by day / week / month / year, by customer and type; production by firing; customer balances. |
+
+Brick types: Awal, Awal Machine, Doum, Tirak, 9t, 9t Doum, 9t Tirak — each with its own stock
+(remaining = opening + production − sold ± adjustments).
+
+**Kiln work, money & settings (secondary):** `/weekly` (patheer), `/rehra`, `/nakasi`, `/people/[kind]`, `/party/[id]`,
+`/expenses`, `/owners`, `/reports`, `/qualities`, `/seasons`, `/history`.
 
 ## Accuracy rules
 
@@ -49,7 +54,7 @@ adjustments, cash counts, the receipts bucket and the views above. Apply all mig
 ```sh
 npm install
 npm run dev        # http://localhost:8080
-npm test           # math, ledger, export, routing and page smoke tests
+npm test           # math, database scenarios (real Postgres via PGlite), and screen tests
 npm run typecheck
 npm run build      # production build
 npm start          # serve the production build

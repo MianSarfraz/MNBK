@@ -320,3 +320,52 @@ export function monthEnd(s: string) {
   const [y, m] = s.split("-").map(Number) as [number, number];
   return iso(new Date(Date.UTC(y, m, 0)));
 }
+
+// ---------- Sales & stock (brick types) ----------
+export const LOW_STOCK = 10_000;
+export type StockStatus = "ok" | "low" | "out" | "negative";
+
+/** Available = opening + produced (+ adjustments); remaining = available − sold. Mirrors SQL view finished_stock. */
+export function stockRow(p: { opening: number; produced: number; sold: number; adjusted?: number }, low = LOW_STOCK) {
+  const available = p.opening + p.produced + (p.adjusted ?? 0);
+  const remaining = available - p.sold;
+  const status: StockStatus = remaining < 0 ? "negative" : remaining === 0 ? "out" : remaining < low ? "low" : "ok";
+  return { available, remaining, status };
+}
+
+/** Can this quantity be sold, given what is in stock and what earlier lines of the same sale already take? */
+export function canSell(remaining: number, qty: number, alreadyTaken = 0) {
+  return qty > 0 && qty + alreadyTaken <= remaining;
+}
+
+/**
+ * Customer account: outstanding = opening due + purchases − payments − adjustments.
+ * Positive = customer owes us; negative = advance / credit held for the customer.
+ */
+export function customerAccount(p: { openingDue: number; purchases: number; payments: number; adjustments?: number }) {
+  const outstanding = p.openingDue + p.purchases - p.payments - (p.adjustments ?? 0);
+  return { outstanding, owes: Math.max(0, outstanding), advance: Math.max(0, -outstanding) };
+}
+
+export type Period = "day" | "week" | "month" | "year";
+/** Grouping key for a sale date: day = the date, week = its Thursday, month = YYYY-MM, year = YYYY. */
+export function periodKey(date: string, period: Period) {
+  if (period === "day") return date;
+  if (period === "week") return weekStart(date);
+  if (period === "month") return date.slice(0, 7);
+  return date.slice(0, 4);
+}
+
+/** Sum quantity and amount per group, sorted by key (newest first for time periods). */
+export function summarize<T extends { quantity: number; amount: number }>(rows: T[], keyOf: (r: T) => string) {
+  const m = new Map<string, { key: string; quantity: number; amount: number; count: number }>();
+  for (const r of rows) {
+    const k = keyOf(r);
+    const g = m.get(k) ?? { key: k, quantity: 0, amount: 0, count: 0 };
+    g.quantity += r.quantity;
+    g.amount += r.amount;
+    g.count++;
+    m.set(k, g);
+  }
+  return [...m.values()];
+}

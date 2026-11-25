@@ -68,7 +68,7 @@ export default function ReportsPage() {
       bricks.made += Number(e.confirmed_count);
     }
     for (const e of d.kiln) {
-      costBy[e.stage] += amountAtRates([{ date: e.entry_date, count: Number(e.count) }], ratesBy.get(e.party_id) ?? [], "earning");
+      costBy[e.stage] += amountAtRates([{ date: e.entry_date, count: Number(e.count) }], (e.party_id && ratesBy.get(e.party_id)) || [], "earning");
       if (e.stage === "rehra") bricks.loaded += Number(e.count); else bricks.baked += Number(e.count);
     }
     const salaries = d.sal.reduce((s, x) => s + Number(x.amount), 0);
