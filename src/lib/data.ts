@@ -160,10 +160,24 @@ export async function openReceipt(path: string) {
 }
 
 // ---------- Sales & stock ----------
-/** The active brick types (Awal, Awal Machine, Doum, Tirak, 9t, 9t Doum, 9t Tirak), in order. */
+/** The active brick types (owner-editable on the Qualities screen), in order. */
 export function useBrickTypes() {
   const q = useQualities();
   return { ...q, data: (q.data ?? []).filter((x) => x.kind === "nakasi" && x.is_active).sort((a, b) => a.sort_order - b.sort_order) };
+}
+
+type Quality = { id: string; name_en: string; kind: string; sort_order: number; deleted_at?: string | null };
+type BrickCategory = "normal" | "nine_t" | "special" | "other";
+
+/** Add a new stock-tracked brick type at the end of the list. Returns an error message, or null when saved. */
+export async function addBrickType(name: string, category: BrickCategory, existing: Quality[]): Promise<string | null> {
+  const n = name.trim().replace(/\s+/g, " ");
+  if (!n) return "Type a name";
+  const types = existing.filter((q) => q.kind === "nakasi" && !q.deleted_at);
+  if (types.some((q) => q.name_en.trim().toLowerCase() === n.toLowerCase())) return `"${n}" already exists`;
+  const sort_order = types.reduce((m, q) => Math.max(m, q.sort_order), 0) + 1;
+  const { error } = await supabase.from("qualities").insert({ name_en: n, name_ur: n, kind: "nakasi", category, is_active: true, sort_order, created_by: await myId() });
+  return error ? error.message : null;
 }
 
 export function useStock() {

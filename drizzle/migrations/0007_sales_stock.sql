@@ -21,13 +21,24 @@ exception when unique_violation then
   raise notice 'Duplicate names already exist; fix them, then re-run to enforce unique names.';
 end $u$;
 
+-- One-time data steps already done (so re-running setup.sql never redoes them).
+create table if not exists public.setup_steps (name text primary key, done_at timestamptz not null default now());
+alter table public.setup_steps enable row level security;
+
 -- ====== The seven brick types (one list for production, stock and sales) ======
+-- Runs ONCE: afterwards owners add, rename, reorder or switch off brick types themselves, and re-running
+-- setup.sql must not undo that. (A database that already has "Awal Machine" ran this step before.)
 do $bt$
 declare
   types text[] := array['Awal', 'Awal Machine', 'Doum', 'Tirak', '9t', '9t Doum', '9t Tirak'];
   cats text[] := array['normal', 'normal', 'normal', 'normal', 'nine_t', 'nine_t', 'nine_t'];
   i int;
 begin
+  if exists (select 1 from public.setup_steps where name = 'seven_brick_types')
+     or exists (select 1 from public.qualities where kind = 'nakasi' and lower(name_en) = 'awal machine') then
+    insert into public.setup_steps (name) values ('seven_brick_types') on conflict do nothing;
+    return;
+  end if;
   update public.qualities set name_en = '9t', name_ur = '9t' where kind = 'nakasi' and name_en = '9T' and deleted_at is null;
   for i in 1 .. array_length(types, 1) loop
     if not exists (select 1 from public.qualities where kind = 'nakasi' and lower(name_en) = lower(types[i]) and deleted_at is null) then
@@ -40,6 +51,7 @@ begin
   -- Older names stay for history but leave the drop-downs.
   update public.qualities set is_active = false
   where deleted_at is null and (kind = 'sale' or (kind = 'nakasi' and lower(name_en) <> all (select lower(x) from unnest(types) x)));
+  insert into public.setup_steps (name) values ('seven_brick_types');
 end $bt$;
 
 -- ====== Initial customers + Nakad Bikri (cash) ======

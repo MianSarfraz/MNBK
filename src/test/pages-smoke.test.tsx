@@ -154,7 +154,7 @@ const PAGES: [string, RegExp][] = [
   ["/reports", /Profit & loss/],
   ["/history", /Edit history/],
   ["/seasons", /2026-27/],
-  ["/qualities", /Stock from/],
+  ["/qualities", /Add brick type/],
   ["/people/customer", /Bashir/],
   ["/people/employee", /Munshi/],
   [`/party/${P1}`, /Statement/],

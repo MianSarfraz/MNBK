@@ -13,6 +13,7 @@ import { downloadExcel } from "@/lib/export";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ConfirmButton } from "@/components/ConfirmButton";
+import { AddBrickType } from "@/components/AddBrickType";
 import { DateInput, Empty, Field, NumInput, PageHeader, PrintHeader, Section, Select, Stat } from "@/components/kit";
 
 const CAT: Record<string, Key> = { normal: "catNormal", nine_t: "cat9t", special: "catSpecial", other: "catOther" };
@@ -72,6 +73,7 @@ export default function StockPage() {
 
   const finRows = fin.data ?? [];
   const typeRows = finRows.filter((r) => r.is_active || Number(r.opening) || Number(r.produced) || Number(r.sold)).sort((x, y) => Number(x.sort_order) - Number(y.sort_order));
+  const hiddenTypes = finRows.length - typeRows.length;
   const cats = ["normal", "nine_t", "special", "other"].filter((c) => finRows.some((r) => r.category === c));
   const unmapped = (qualities.data ?? []).filter((q) => q.kind === "sale" && q.is_active && !q.stock_quality_id);
   const qName = (id: string | null) => { const q = (qualities.data ?? []).find((x) => x.id === id); return q ? q.name_en : t("rawBricks"); };
@@ -133,6 +135,13 @@ export default function StockPage() {
         </tbody>
       </Grid>
       <p className="text-xs text-muted-foreground">{t("stockFormula")} · {t("lowStock")} &lt; {fmt(LOW_STOCK)}</p>
+      <div className="no-print space-y-1">
+        <AddBrickType />
+        <p className="text-xs text-muted-foreground">
+          <Link href="/qualities" className="underline">{t("manageBrickTypes")}</Link>
+          {hiddenTypes > 0 && <> · {fmt(hiddenTypes)} {t("switchedOffTypes")}</>}
+        </p>
+      </div>
       {typeRows.some((r) => Number(r.balance) < 0) && <p className="rounded-md border border-destructive bg-destructive/10 p-2 text-sm text-destructive">⚠ {t("negativeStockHelp")}</p>}
 
       <Section title={t("rawStock")} actions={

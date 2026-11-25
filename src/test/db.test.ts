@@ -135,6 +135,22 @@ describe("setup.sql is safe to re-run", () => {
   }, 60_000);
 });
 
+describe("brick types are owner-editable", () => {
+  it("a brick type an owner adds shows in stock and stays on after setup.sql is re-run", async () => {
+    await q(`insert into qualities (name_en, name_ur, kind, category, sort_order, created_by) values ('Special', 'Special', 'nakasi', 'special', 8, $1)`, [U]);
+    await q(`insert into stock_adjustments (stock, quality_id, entry_date, delta, reason, is_opening) values ('finished', $1, '2026-11-01', 3000, 'Opening stock', true)`, [await type("Special")]);
+    await db.exec(`reset role`);
+    await db.exec(SETUP);
+    await db.exec(`set role authenticated`);
+    expect(await stock("Special")).toMatchObject({ opening: 3000, balance: 3000 });
+    const active = await q<{ name_en: string }>(`select name_en from qualities where kind='nakasi' and is_active order by sort_order`);
+    expect(active.map((r) => r.name_en)).toContain("Special");
+  }, 60_000);
+  it("refuses a second brick type with the same name", async () => {
+    await expect(q(`insert into qualities (name_en, name_ur, kind, created_by) values (' special ', 'x', 'nakasi', $1)`, [U])).rejects.toThrow(/qualities_unique_name/);
+  });
+});
+
 describe("upgrading a project that ran the older setup (migrations up to 0006)", () => {
   it("keeps old sales: a sale of the old 'Awal' sale-quality still counts against Awal stock", async () => {
     const old = await freshDb();
@@ -153,5 +169,25 @@ describe("upgrading a project that ran the older setup (migrations up to 0006)",
     expect(types).toBe(7);
     const acct = (await old.query<{ outstanding: number }>(`select outstanding from customer_accounts where name='Old Customer'`)).rows[0]!;
     expect(acct.outstanding).toBe(72000);
+  }, 60_000);
+
+  it("turns types an owner added as 'sale' (missing from stock) into brick types, and keeps them on", async () => {
+    const old = await freshDb();
+    const dir = path.resolve(__dirname, "../../drizzle/migrations");
+    for (const f of fs.readdirSync(dir).filter((f) => f.endsWith(".sql") && f < "0008").sort()) await old.exec(fs.readFileSync(path.join(dir, f), "utf8"));
+    await old.exec(`insert into auth.users values ('${U}','a@x','{}'); set role authenticated; select set_config('test.uid','${U}',false); select public.claim_owner_role();`);
+    await old.exec(`insert into qualities (name_en, name_ur, kind, sort_order, created_by) values ('Khingar', 'Khingar', 'sale', 100, '${U}'), ('Doum', 'Doum', 'sale', 100, '${U}');
+      insert into qualities (name_en, name_ur, kind, sort_order, created_by, is_active) values ('Pakki', 'Pakki', 'nakasi', 100, '${U}', false);`);
+    await old.exec(`reset role`);
+    await old.exec(SETUP);
+    await old.exec(SETUP);
+    const rows = (await old.query<{ name_en: string }>(`select name_en from finished_stock where is_active order by sort_order`)).rows.map((r) => r.name_en);
+    expect(rows).toEqual(["Awal", "Awal Machine", "Doum", "Tirak", "9t", "9t Doum", "9t Tirak", "Pakki", "Khingar"]);
+    const doum = (await old.query<{ linked: boolean }>(`select stock_quality_id is not null linked from qualities where kind='sale' and name_en='Doum' and created_by='${U}'`)).rows[0]!;
+    expect(doum.linked).toBe(true);
+    // A type switched off after the repair stays off on later re-runs.
+    await old.exec(`update qualities set is_active=false where name_en='Khingar'`);
+    await old.exec(SETUP);
+    expect((await old.query<{ a: boolean }>(`select is_active a from qualities where name_en='Khingar'`)).rows[0]!.a).toBe(false);
   }, 60_000);
 });
