@@ -149,6 +149,7 @@ const dict = {
   raw9t: "9t tile",
   fromCol: "From",
   fromStore: "Kacha store",
+  freshKacha: "Fresh kacha",
   bricksLoaded: "Bricks loaded",
   tilesLoaded: "9t tiles loaded",
   loadedFromStore: "From kacha store",

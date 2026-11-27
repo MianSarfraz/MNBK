@@ -337,6 +337,10 @@ describe("rehra khatta", () => {
     const { spy } = await mount("/rehra");
     expect(await screen.findByText("Kacha store — stored dry bricks", {}, { timeout: 4000 })).toBeInTheDocument();
     expect(await screen.findByText("15,000")).toBeInTheDocument(); // bricks in store
+    // Patheer is switched off for now: no "made − loaded" figure and no patheer names in "From".
+    expect(screen.queryByText(/Made − loaded/)).toBeNull();
+    const fromOpts = [...(screen.getAllByLabelText("From").at(-1) as HTMLSelectElement).options].map((o) => o.text);
+    expect(fromOpts).toEqual(["Fresh kacha", "📦 Kacha store"]);
     // New load from the store
     fireEvent.change(screen.getAllByLabelText("Rehra").at(-1)!, { target: { value: R1 } });
     fireEvent.change(screen.getAllByLabelText("What").at(0)!.closest("table")!.querySelectorAll("tr.new select[aria-label='What']")[0]!, { target: { value: "9t" } });

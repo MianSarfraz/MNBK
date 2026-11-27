@@ -10,6 +10,7 @@ import { fmt, fmtDate, useT } from "@/lib/i18n";
 import { amountAtRates, parseWhole, type Rate, type RawType } from "@/lib/kiln-math";
 import { errMsg, myId, today, useGairs, useKachaStock, useParties, useQualities, useRates } from "@/lib/data";
 import { KachaStore, RAW_TYPES } from "@/components/KachaStore";
+import { PATHEER } from "@/lib/features";
 import { Button } from "@/components/ui/button";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { KharchaSheet } from "@/components/KharchaSheet";
@@ -39,7 +40,7 @@ export function KilnWeek({ stage }: { stage: Stage }) {
   // Patheer confirmed this week, for rehra reconciliation.
   const madeQ = useQuery({
     queryKey: ["entries", start, "made"],
-    enabled: stage === "rehra",
+    enabled: stage === "rehra" && PATHEER,
     queryFn: async () => {
       const { data, error } = await supabase.from("production_entries").select("party_id, confirmed_count").gte("entry_date", start).lte("entry_date", end).is("deleted_at", null);
       if (error) throw error;
@@ -127,7 +128,8 @@ export function KilnWeek({ stage }: { stage: Stage }) {
 
   const activeWorkers = rows.filter((w) => w.is_active);
   const qualityOpts = (qualities.data ?? []).filter((q) => q.is_active && (stage === "rehra" || q.kind === "nakasi"));
-  const patheerOpts = (patheers.data ?? []).filter((p) => p.is_active);
+  // Patheer is switched off for now: rehra loads are just "fresh" or "from the kacha store".
+  const patheerOpts = PATHEER ? (patheers.data ?? []).filter((p) => p.is_active) : [];
   const kharchaRows = totals.map(({ w, bricks, earn, kh, hasRate }) => ({ id: w.id, name: w.name, bricks, earn, suggested: kh, noRate: !hasRate }));
   const sorted = entries.slice().sort((x, y) => x.entry_date.localeCompare(y.entry_date) || x.created_at.localeCompare(y.created_at));
   const entryCols = stage === "rehra" ? 8 : 6;
@@ -147,8 +149,8 @@ export function KilnWeek({ stage }: { stage: Stage }) {
         {stage === "rehra" ? (<>
           <Stat label={t("bricksLoaded")} value={loadedBricks} sub={loaded9t ? `+ ${fmt(loaded9t)} ${t("raw9t")}` : undefined} />
           <Stat label={t("tilesLoaded")} value={loaded9t} />
-          <Stat label={t("loadedFromStore")} value={loadedStore} sub={`${fmt(weekBricks - loadedStore)} ${t("freshLoaded").toLowerCase()}`} />
-          <Stat label={t("madeMinusLoaded")} value={made - (weekBricks - loadedStore)} sub={`${fmt(made)} ${t("madeThisWeek").toLowerCase()}`} tone={made - (weekBricks - loadedStore) < 0 ? "bad" : undefined} />
+          <Stat label={t("loadedFromStore")} value={loadedStore} sub={`${fmt(weekBricks - loadedStore)} ${t(PATHEER ? "freshLoaded" : "freshKacha").toLowerCase()}`} />
+          {PATHEER && <Stat label={t("madeMinusLoaded")} value={made - (weekBricks - loadedStore)} sub={`${fmt(made)} ${t("madeThisWeek").toLowerCase()}`} tone={made - (weekBricks - loadedStore) < 0 ? "bad" : undefined} />}
         </>) : <Stat label={t("bakedThisWeek")} value={weekBricks} />}
         <Stat label={t("earnings")} value={weekEarn} money />
       </div>
@@ -272,12 +274,10 @@ function FromSelect({ value, patheers, extra, pName, disabled, onChange }: {
   const { t } = useT();
   return (
     <select className="cell" value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)} aria-label={t("fromCol")}>
-      <option value="">—</option>
+      <option value="">{PATHEER ? "—" : t("freshKacha")}</option>
       <option value="store">📦 {t("fromStore")}</option>
-      <optgroup label={t("srcPatheer")}>
-        {extra && !patheers.some((p) => p.id === extra) && <option value={extra}>{pName(extra)}</option>}
-        {patheers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-      </optgroup>
+      {extra && !patheers.some((p) => p.id === extra) && <option value={extra}>{pName(extra)}</option>}
+      {patheers.length > 0 && <optgroup label={t("srcPatheer")}>{patheers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</optgroup>}
     </select>
   );
 }

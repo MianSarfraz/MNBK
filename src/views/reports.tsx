@@ -1,5 +1,6 @@
 "use client";
 
+import { PATHEER } from "@/lib/features";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -149,7 +150,7 @@ export default function ReportsPage() {
               <dt>{t("salesTotal")}</dt><dd className="num">{fmt(pnl.p.sales)}</dd>
               <dt>{t("otherIncome")}</dt><dd className="num">{fmt(pnl.p.otherIncome)}</dd>
               <dt className="mt-2 font-bold">{t("costs")}</dt><dd />
-              <dt>{t("patheer")} {t("earnings")}</dt><dd className="num">{fmt(pnl.costBy.patheer)}</dd>
+              {PATHEER && <><dt>{t("patheer")} {t("earnings")}</dt><dd className="num">{fmt(pnl.costBy.patheer)}</dd></>}
               <dt>{t("rehra")} {t("earnings")}</dt><dd className="num">{fmt(pnl.costBy.rehra)}</dd>
               <dt>{t("nakasi")} {t("earnings")}</dt><dd className="num">{fmt(pnl.costBy.nakasi)}</dd>
               <dt>{t("salaries")}</dt><dd className="num">{fmt(pnl.p.salaries)}</dd>
@@ -164,7 +165,7 @@ export default function ReportsPage() {
               <div className="grid grid-cols-2 gap-2">
                 <Stat label={t("cashIn")} value={pnl.cashIn} money tone="good" />
                 <Stat label={t("cashOut")} value={pnl.cashOut} money tone="bad" />
-                <Stat label={t("madeConfirmed")} value={pnl.bricks.made} />
+                {PATHEER && <Stat label={t("madeConfirmed")} value={pnl.bricks.made} />}
                 <Stat label={t("loadedInKiln")} value={pnl.bricks.loaded} />
                 <Stat label={t("bakedOut")} value={pnl.bricks.baked} />
                 <Stat label={t("bricksSold")} value={pnl.sold} />

@@ -10,6 +10,7 @@ import { today, useCustomerAccounts, useLedgers, useSaleLines, useStock } from "
 import { Section, Stat } from "@/components/kit";
 import { Sheet } from "@/components/sheet";
 import { Outstanding } from "@/views/customers";
+import { PATHEER } from "@/lib/features";
 
 export default function Dashboard() {
   const { t } = useT();
@@ -172,21 +173,22 @@ function KilnSecondary() {
   });
   const ledgers = useLedgers();
   const L = ledgers.data ?? [];
-  const workers = ["patheer", "rehra", "nakasi", "employee"];
+  const workers = PATHEER ? ["patheer", "rehra", "nakasi", "employee"] : ["rehra", "nakasi", "employee"];
   const weOwe = L.filter((l) => workers.includes(l.party_kind ?? "")).reduce((s, l) => s + Math.max(0, Number(l.balance)), 0);
   const theyOwe = L.filter((l) => workers.includes(l.party_kind ?? "")).reduce((s, l) => s + Math.max(0, -Number(l.balance)), 0);
   return (
     <details className="rounded-xl border bg-card p-3">
       <summary className="cursor-pointer text-sm font-semibold">{t("kilnWork")} · <span className="num font-normal text-muted-foreground">{fmtDate(ws)} → {fmtDate(we)}</span></summary>
       <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-5">
-        <Stat label={t("madeConfirmed")} value={week.data?.conf} />
+        {PATHEER && <Stat label={t("madeConfirmed")} value={week.data?.conf} />}
         <Stat label={t("loadedInKiln")} value={week.data?.loaded} />
         <Stat label={t("bakedOut")} value={week.data?.baked} />
         <Stat label={t("weOweWorkers")} value={weOwe} money tone="warn" />
         <Stat label={t("workersOweUs")} value={theyOwe} money tone="good" />
       </div>
       <div className="mt-2 flex flex-wrap gap-2 text-sm">
-        <Link href="/weekly" className="rounded-md border px-3 py-1.5">{t("weekly")}</Link>
+        {PATHEER && <Link href="/weekly" className="rounded-md border px-3 py-1.5">{t("weekly")}</Link>}
+        <Link href="/gair" className="rounded-md border px-3 py-1.5">{t("gairCheck")}</Link>
         <Link href="/rehra" className="rounded-md border px-3 py-1.5">{t("rehra")}</Link>
         <Link href="/nakasi" className="rounded-md border px-3 py-1.5">{t("nakasi")}</Link>
         <Link href="/expenses" className="rounded-md border px-3 py-1.5">{t("expenseKhatta")}</Link>

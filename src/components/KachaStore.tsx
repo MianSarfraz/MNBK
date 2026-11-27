@@ -8,6 +8,7 @@ import type { Tables } from "@/integrations/supabase/types";
 import { fmt, useT, type Key } from "@/lib/i18n";
 import { parseWhole, type RawType } from "@/lib/kiln-math";
 import { fetchAll, myId, useKachaStock } from "@/lib/data";
+import { PATHEER } from "@/lib/features";
 import { Button } from "@/components/ui/button";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { Cell, LetterRow, Sheet } from "@/components/sheet";
@@ -106,7 +107,7 @@ export function KachaStore({ start, end, readOnly, patheers, defaultDate }: {
               <td className="px-1">{!readOnly && <ConfirmButton size="sm" variant="outline" onConfirm={() => update(r.id, { deleted_at: new Date().toISOString() })}>×</ConfirmButton>}</td>
             </tr>
           ))}
-          {!readOnly && <NewStoreRow n={rows.length + 1} patheers={patheers.filter((p) => p.is_active)} defaultDate={rows.at(-1)?.entry_date ?? defaultDate} onSaved={refresh} />}
+          {!readOnly && <NewStoreRow n={rows.length + 1} patheers={PATHEER ? patheers.filter((p) => p.is_active) : []} defaultDate={rows.at(-1)?.entry_date ?? defaultDate} onSaved={refresh} />}
           <tr className="total">
             <td className="rn" /><td colSpan={4}>{t("total")}</td>
             <td className="n num">{fmt(total("brick"))}{total("9t") ? <div className="text-[11px] font-normal">+ {fmt(total("9t"))} {t("raw9t")}</div> : null}</td><td colSpan={2} />

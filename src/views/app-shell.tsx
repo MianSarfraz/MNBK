@@ -8,6 +8,7 @@ import { Boxes, Home, LogOut, Menu, Receipt, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useT, type Key } from "@/lib/i18n";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { PATHEER } from "@/lib/features";
 
 type NavItem = { href: string; k: Key };
 const GROUPS: { title: string; items: NavItem[] }[] = [
@@ -16,13 +17,13 @@ const GROUPS: { title: string; items: NavItem[] }[] = [
     { href: "/customers", k: "customers" }, { href: "/stock", k: "stockSummary" }, { href: "/production", k: "productionRegister" },
     { href: "/stock/opening", k: "openingStock" }, { href: "/sales-reports", k: "salesReports" }, { href: "/sales/invoices", k: "invoices" },
   ] },
-  { title: "Kiln work", items: [{ href: "/weekly", k: "weekly" }, { href: "/rehra", k: "rehra" }, { href: "/gair", k: "gairCheck" }, { href: "/nakasi", k: "nakasi" }, { href: "/patheer", k: "patheer" }, { href: "/people/employee", k: "employees" }] },
+  { title: "Kiln work", items: [...(PATHEER ? [{ href: "/weekly", k: "weekly" as Key }] : []), { href: "/rehra", k: "rehra" }, { href: "/gair", k: "gairCheck" }, { href: "/nakasi", k: "nakasi" }, ...(PATHEER ? [{ href: "/patheer", k: "patheer" as Key }] : []), { href: "/people/employee", k: "employees" }] },
   { title: "Money", items: [{ href: "/expenses", k: "expenseKhatta" }, { href: "/owners", k: "ownersTitle" }, { href: "/people/vendor", k: "vendors" }, { href: "/reports", k: "reports" }] },
   { title: "Settings", items: [{ href: "/qualities", k: "qualities" }, { href: "/seasons", k: "seasons" }, { href: "/history", k: "history" }] },
 ];
 const DESKTOP: NavItem[] = [
   { href: "/dashboard", k: "dashboard" }, { href: "/sales", k: "sales" }, { href: "/payments", k: "paymentsShort" }, { href: "/customers", k: "customers" },
-  { href: "/stock", k: "stock" }, { href: "/production", k: "production" }, { href: "/sales-reports", k: "reports" }, { href: "/weekly", k: "kilnWork" },
+  { href: "/stock", k: "stock" }, { href: "/production", k: "production" }, { href: "/sales-reports", k: "reports" }, { href: PATHEER ? "/weekly" : "/rehra", k: "kilnWork" },
 ];
 const TABS = [
   { href: "/dashboard", k: "home" as Key, icon: Home },

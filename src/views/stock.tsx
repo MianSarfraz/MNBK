@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { AddBrickType } from "@/components/AddBrickType";
 import { KachaStoreCards } from "@/components/KachaStore";
+import { PATHEER } from "@/lib/features";
 import { DateInput, Empty, Field, NumInput, PageHeader, PrintHeader, Section, Select, Stat } from "@/components/kit";
 
 const CAT: Record<string, Key> = { normal: "catNormal", nine_t: "cat9t", special: "catSpecial", other: "catOther" };
@@ -150,18 +151,18 @@ export default function StockPage() {
         <Select className="w-48" value={seasonId} onChange={(e) => setSeasonId(e.target.value)}>
           <option value="">{t("allTime")}</option>{(seasons.data ?? []).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
         </Select>}>
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        {PATHEER && <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           <Stat label={t("madeConfirmed")} value={rs.made} />
           <Stat label={t("loadedInKiln")} value={rs.loaded} />
           <Stat label={t("adjusted")} value={rs.adjusted} />
           <Stat label={t("rawAtYard")} value={rs.balance} tone={rs.balance < 0 ? "bad" : undefined} />
-        </div>
+        </div>}
         <div className="mt-3 space-y-1">
           <div className="text-sm font-semibold">{t("kachaStore")} <Link href="/rehra" className="ms-2 text-xs font-normal text-primary underline">{t("rehraKhatta")}</Link></div>
           <KachaStoreCards />
           {fromStore > 0 && <p className="num text-xs text-muted-foreground">{t("loadedFromStore")}: {fmt(fromStore)}</p>}
         </div>
-        {byPatheer.length > 0 && (
+        {PATHEER && byPatheer.length > 0 && (
           <div className="mt-4 overflow-x-auto">
             <table className="sheet">
               <thead><tr className="text-muted-foreground"><th className="p-2 text-start">{t("patheer")}</th><th className="p-2">{t("madeConfirmed")}</th><th className="p-2">{t("loadedFromHim")}</th></tr></thead>
