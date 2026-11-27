@@ -121,7 +121,6 @@ export default function BillPage() {
       {sales.length > 0 && (
         <article className="register-paper rounded-xl border bg-card p-4">
           <BillHeader title={sales.length > 1 ? t("combinedInvoice") : t("invoice")} right={<>
-            <div className="num font-semibold">{sales.map((s) => saleId(s.invoice_no)).join(", ")}</div>
             <div className="num">{t("date")}: {fmtDate(today())}</div>
           </>} />
           <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-lg">
@@ -130,7 +129,7 @@ export default function BillPage() {
           </dl>
           <table className="sheet mt-3">
             <thead><tr className="border-b-2 border-primary">
-              <th className="text-start">{t("date")}</th><th className="text-start">{t("saleIdCol")}</th>{custIds.length > 1 && <th className="text-start">{t("customer")}</th>}
+              <th className="text-start">{t("date")}</th>{custIds.length > 1 && <th className="text-start">{t("customer")}</th>}
               <th className="text-start">{t("brickType")}</th><th className="n">{t("qtyCol")}</th><th className="n">{t("rateCol")}</th><th className="n">{t("amountRs")}</th>
             </tr></thead>
             <tbody>
@@ -140,7 +139,7 @@ export default function BillPage() {
                 return [
                   ...ls.map((l, i) => (
                     <tr key={l.item_id} className="border-b">
-                      <td className="num">{i === 0 ? fmtDate(s.entry_date) : ""}</td><td className="num text-xs">{i === 0 ? saleId(s.invoice_no) : ""}</td>
+                      <td className="num">{i === 0 ? fmtDate(s.entry_date) : ""}</td>
                       {custIds.length > 1 && <td>{i === 0 ? custName(s.customer_id) : ""}</td>}
                       <td>{typeName(l.quality_id)}{isLoad(l.unit) && <span className="ms-1 text-xs text-muted-foreground">({t("perLoad")})</span>}</td>
                       <td className="n num">{fmt(Number(l.quantity))}</td>
@@ -150,7 +149,7 @@ export default function BillPage() {
                   )),
                   extra !== 0 && (
                     <tr key={`${s.sale_id}-x`} className="border-b text-sm">
-                      <td colSpan={custIds.length > 1 ? 6 : 5} className="text-end text-muted-foreground">
+                      <td colSpan={custIds.length > 1 ? 5 : 4} className="text-end text-muted-foreground">
                         {Number(s.discount) ? `${t("discount")} − ${fmt(Number(s.discount))}` : ""}{Number(s.discount) && Number(s.delivery_charges) ? " · " : ""}{Number(s.delivery_charges) ? `${t("deliveryCharges")} + ${fmt(Number(s.delivery_charges))}` : ""}
                       </td>
                       <td className="n num">{extra > 0 ? "+" : "−"} {fmt(Math.abs(extra))}</td>

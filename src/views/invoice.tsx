@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { fmt, fmtDate, useT } from "@/lib/i18n";
 import { invoiceTotal, isLoad, lineAmount, parseWhole } from "@/lib/kiln-math";
-import { errMsg, myId, saleId, today, useBrickTypes, useParties, useLedgers, useOwners, useQualities, useRoray } from "@/lib/data";
+import { errMsg, myId, today, useBrickTypes, useParties, useLedgers, useOwners, useQualities, useRoray } from "@/lib/data";
 import { TypeOptions } from "@/views/sales-register";
 import { Button } from "@/components/ui/button";
 import { ConfirmButton } from "@/components/ConfirmButton";
@@ -102,7 +102,6 @@ export default function InvoicePage() {
 
       <article className="register-paper rounded-xl border p-4">
         <BillHeader title={t("invoice")} right={<>
-          <div className="num text-2xl font-bold">{saleId(sale.invoice_no)}</div>
           <div className="num">{fmtDate(sale.entry_date)}</div>
           {voided && <div className="rounded bg-destructive px-2 text-destructive-foreground">{t("voided")}</div>}
         </>} />
