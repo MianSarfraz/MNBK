@@ -1,5 +1,6 @@
 "use client";
 
+import { BillHeader } from "@/components/BillHeader";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
@@ -8,7 +9,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { fmt, fmtDate, useT } from "@/lib/i18n";
 import { invoiceTotal, isLoad, lineAmount, parseWhole } from "@/lib/kiln-math";
-import { errMsg, myId, today, useBrickTypes, useLedgers, useOwners, useQualities, useRoray } from "@/lib/data";
+import { errMsg, myId, saleId, today, useBrickTypes, useParties, useLedgers, useOwners, useQualities, useRoray } from "@/lib/data";
 import { TypeOptions } from "@/views/sales-register";
 import { Button } from "@/components/ui/button";
 import { ConfirmButton } from "@/components/ConfirmButton";
@@ -21,6 +22,7 @@ export default function InvoicePage() {
   const qc = useQueryClient();
   const router = useRouter();
   const owners = useOwners();
+  const allCustomers = useParties("customer");
   const qualities = useQualities();
   const ledgers = useLedgers();
   const q = useQuery({
@@ -99,19 +101,23 @@ export default function InvoicePage() {
       </div>
 
       <article className="register-paper rounded-xl border p-4">
-        <header className="flex flex-wrap items-start justify-between gap-3 border-b-2 border-primary pb-3">
-          <div>
-            <div className="text-2xl font-bold text-primary">{t("appName")}</div>
-            <div className="text-lg">{t("invoice")}</div>
-          </div>
-          <div className="text-end">
-            <div className="num text-2xl font-bold">#{fmt(Number(sale.invoice_no))}</div>
-            <div className="num">{fmtDate(sale.entry_date)}</div>
-            {voided && <div className="rounded bg-destructive px-2 text-destructive-foreground">{t("voided")}</div>}
-          </div>
-        </header>
+        <BillHeader title={t("invoice")} right={<>
+          <div className="num text-2xl font-bold">{saleId(sale.invoice_no)}</div>
+          <div className="num">{fmtDate(sale.entry_date)}</div>
+          {voided && <div className="rounded bg-destructive px-2 text-destructive-foreground">{t("voided")}</div>}
+        </>} />
         <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-lg">
-          <dt className="text-muted-foreground">{t("customer")}</dt><dd className="font-bold">{customer.name} <span className="num text-base font-normal">{customer.phone}</span></dd>
+          <dt className="text-muted-foreground">{t("customer")}</dt><dd className="font-bold">{edit ? (
+            <select className="h-9 rounded-md border bg-background px-2 text-base" value={customer.id} aria-label={t("editCustomer")}
+              onChange={async (e) => {
+                const to = e.target.value;
+                const { error } = await supabase.from("sales").update({ customer_id: to }).eq("id", id);
+                if (error) return void toast.error(error.message);
+                await supabase.from("transactions").update({ party_id: to }).eq("sale_id", id).is("deleted_at", null);
+                refresh();
+              }}>
+              {(allCustomers.data ?? []).filter((c) => c.is_active || c.id === customer.id).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>) : customer.name} <span className="num text-base font-normal">{customer.phone}</span></dd>
           {customer.address && <><dt className="text-muted-foreground">{t("address")}</dt><dd>{customer.address}</dd></>}
           {sale.vehicle_no && <><dt className="text-muted-foreground">{t("vehicle")}</dt><dd className="num">{sale.vehicle_no}</dd></>}
           {sale.driver_name && <><dt className="text-muted-foreground">{t("driver")}</dt><dd>{sale.driver_name}</dd></>}

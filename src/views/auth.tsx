@@ -1,5 +1,6 @@
 "use client";
 
+import { Logo } from "@/components/BillHeader";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -53,7 +54,8 @@ export default function AuthPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-8">
       <div className="w-full max-w-sm rounded-2xl border bg-card p-4 shadow-sm">
-        <h1 className="text-center text-2xl font-bold text-primary">{t("appName")}</h1>
+        <div className="flex justify-center"><Logo size={120} /></div>
+        <h1 className="sr-only">{t("appName")}</h1>
         <p className="mt-1 text-center text-sm text-muted-foreground">{mode === "in" ? t("signInHelp") : t("signUpHelp")}</p>
         <form onSubmit={submit} className="mt-6 space-y-4">
           {mode === "up" && (

@@ -35,8 +35,8 @@ export default function SalesRegister() {
   const accounts = useCustomerAccounts();
   const receiptsQ = useQuery({
     queryKey: ["sale-receipts", from, to],
-    queryFn: () => fetchAll<Pick<Tables<"transactions">, "sale_id" | "amount" | "direction" | "entry_date">>((a, b) =>
-      supabase.from("transactions").select("sale_id, amount, direction, entry_date").eq("kind", "sale_receipt").is("deleted_at", null)
+    queryFn: () => fetchAll<Pick<Tables<"transactions">, "id" | "sale_id" | "amount" | "direction" | "entry_date">>((a, b) =>
+      supabase.from("transactions").select("id, sale_id, amount, direction, entry_date").eq("kind", "sale_receipt").is("deleted_at", null)
         .gte("entry_date", from).lte("entry_date", to).order("id").range(a, b)),
   });
 
@@ -61,6 +61,31 @@ export default function SalesRegister() {
   const outstanding = customers.reduce((s, c) => s + Math.max(0, Number(c.outstanding)), 0);
   const refresh = () => qc.invalidateQueries();
 
+  const [picked, setPicked] = useState<string[]>([]);
+  const togglePick = (id: string) => setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
+  /** Move a sale to another customer; money taken with the sale moves with it. */
+  async function changeCustomer(sale: string, customer: string) {
+    const { error } = await supabase.from("sales").update({ customer_id: customer }).eq("id", sale);
+    if (error) return void toast.error(error.message);
+    const { error: e2 } = await supabase.from("transactions").update({ party_id: customer }).eq("sale_id", sale).is("deleted_at", null);
+    if (e2) toast.error(e2.message);
+    toast.success(t("saved"));
+    refresh();
+  }
+  /** "Paid at sale" is editable: one receipt is changed (0 removes it); none yet → a receipt is added. */
+  async function changePaid(l: Line, amount: number) {
+    const rs = (receiptsQ.data ?? []).filter((r) => r.sale_id === l.sale_id && r.direction === "in");
+    if (rs.length > 1) return void toast.error(t("paidManyHelp"));
+    const r = rs[0];
+    const now = new Date().toISOString();
+    const { error } = r
+      ? await supabase.from("transactions").update(amount > 0 ? { amount } : { deleted_at: now }).eq("id", r.id)
+      : amount > 0
+        ? await supabase.from("transactions").insert({ entry_date: l.entry_date!, party_id: l.customer_id, sale_id: l.sale_id, kind: "sale_receipt", direction: "in", amount, method: "cash", handler_user_id: await myId(), category: "sale", created_by: await myId() })
+        : { error: null };
+    if (error) return void toast.error(error.message);
+    refresh();
+  }
   async function updateSale(id: string, patch: Partial<Tables<"sales">>) {
     const { error } = await supabase.from("sales").update(patch).eq("id", id);
     if (error) toast.error(error.message);
@@ -107,6 +132,8 @@ export default function SalesRegister() {
     <div className="space-y-3">
       <PrintHeader title={t("salesRegister")} sub={allTime ? t("allTime") : fmtMonth(month)} />
       <PageHeader title={t("salesRegister")} sub={t("salesRegisterHelp")} actions={<>
+        <Link href={picked.length ? `/sales/bill?ids=${picked.join(",")}` : "/sales/bill"} className="inline-flex h-9 items-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground">
+          🧾 {picked.length ? `${t("makeInvoice")} (${picked.length})` : t("invoiceGenerator")}</Link>
         <Link href="/sales/new" className="inline-flex h-9 items-center rounded-md border bg-card px-3 text-sm">{t("multiTypeInvoice")}</Link>
         <Button variant="outline" size="sm" onClick={exportXls}>Excel</Button>
         <Button variant="outline" size="sm" onClick={() => window.print()}>{t("print")}</Button>
@@ -163,9 +190,17 @@ export default function SalesRegister() {
             return (
               <tr key={l.item_id} className={i > 0 && lines[i - 1]!.entry_date !== l.entry_date ? "day-start" : ""}>
                 <td className="rn">{i + 1}</td>
-                <td className="num text-xs"><Link href={`/sales/${l.sale_id}`} className="text-primary hover:underline">{saleId(l.invoice_no)}</Link></td>
+                <td className="num whitespace-nowrap text-xs">{firstOfSale && <input type="checkbox" className="no-print me-1 align-middle" checked={picked.includes(l.sale_id!)} onChange={() => togglePick(l.sale_id!)} aria-label={`${t("makeInvoice")} ${saleId(l.invoice_no)}`} />}
+                  <Link href={`/sales/${l.sale_id}`} className="text-primary hover:underline">{saleId(l.invoice_no)}</Link></td>
                 <td className="c">{firstOfSale ? <Cell type="date" value={l.entry_date!} onCommit={(v) => v && updateSale(l.sale_id!, { entry_date: v })} /> : <span className="dim px-2">″</span>}</td>
-                <td className="whitespace-nowrap"><Link href={`/customers/${l.customer_id}`} className="hover:underline">{custName(l.customer_id)}</Link>{isCash && <span className="ms-1 rounded bg-success/15 px-1 text-[10px] text-success">{t("cash")}</span>}</td>
+                <td className="c whitespace-nowrap">{firstOfSale ? (
+                  <div className="flex items-center">
+                    <select className="cell min-w-0 flex-1" value={l.customer_id ?? ""} onChange={(e) => e.target.value && changeCustomer(l.sale_id!, e.target.value)} aria-label={`${saleId(l.invoice_no)} ${t("customer")}`}>
+                      {customers.filter((c) => c.is_active || c.party_id === l.customer_id).map((c) => <option key={c.party_id} value={c.party_id!}>{c.name}</option>)}
+                    </select>
+                    {isCash && <span className="rounded bg-success/15 px-1 text-[10px] text-success">{t("cash")}</span>}
+                    <Link href={`/customers/${l.customer_id}`} className="no-print px-1 text-xs text-muted-foreground hover:text-primary" aria-label={t("customer")}>↗</Link>
+                  </div>) : <span className="dim px-2">″</span>}</td>
                 <td className="c">
                   <select className="cell" value={l.quality_id ?? ""} onChange={(e) => updateItem(l, { quality_id: e.target.value })} aria-label={t("brickType")}>
                     {!items.some((q) => q.id === l.quality_id) && <option value={l.quality_id ?? ""}>{typeName(l.quality_id)}</option>}
@@ -175,7 +210,8 @@ export default function SalesRegister() {
                 <td className="c" title={isLoad(l.unit) ? t("loads") : t("bricks")}><Cell numeric value={String(Number(l.quantity))} label={`${saleId(l.invoice_no)} ${t("quantityCol")}`} onCommit={(v) => { const n = parseWhole(v); if (n && n > 0) updateItem(l, { quantity: n }); }} /></td>
                 <td className="c" title={isLoad(l.unit) ? t("perLoad") : t("per1000")}><Cell numeric value={String(Number(l.rate_per_1000))} onCommit={(v) => { const n = parseWhole(v || "0"); if (n != null && n >= 0) updateItem(l, { rate_per_1000: n }); }} /></td>
                 <td className="n num font-semibold">{Number(l.rate_per_1000) > 0 ? fmt(Number(l.amount)) : <span className="text-[11px] font-normal text-warning-foreground">{t("rateLater")}</span>}</td>
-                <td className="n num ro">{firstOfSale ? fmt(paidAtSale.get(l.sale_id!) ?? 0) : ""}</td>
+                <td className="c">{firstOfSale ? <Cell numeric value={String(paidAtSale.get(l.sale_id!) ?? 0)} label={`${saleId(l.invoice_no)} ${t("paidAtSale")}`}
+                  onCommit={(v) => { const n = parseWhole(v || "0"); if (n != null && n >= 0) changePaid(l, n); }} /> : null}</td>
                 <td className="c">{firstOfSale ? <Cell value={l.vehicle_no ?? ""} placeholder="—" onCommit={(v) => updateSale(l.sale_id!, { vehicle_no: v.trim() || null })} /> : null}</td>
                 <td className="c">{firstOfSale ? <Cell value={l.driver_name ?? ""} placeholder="—" onCommit={(v) => updateSale(l.sale_id!, { driver_name: v.trim() || null })} /> : null}</td>
                 <td className="c">{firstOfSale ? <Cell value={l.note ?? ""} placeholder="—" onCommit={(v) => updateSale(l.sale_id!, { note: v.trim() || null })} /> : null}</td>

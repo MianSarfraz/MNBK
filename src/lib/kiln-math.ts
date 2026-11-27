@@ -305,6 +305,13 @@ export function kilnByWeek(
   return [...m.values()].sort((a, b) => b.week.localeCompare(a.week));
 }
 
+/** One bill for several sales: Σ sale totals, Σ received against those sales, and what is still due on them. */
+export function billTotals(sales: { total: number; received: number }[]) {
+  const total = sales.reduce((s, x) => s + x.total, 0);
+  const received = sales.reduce((s, x) => s + x.received, 0);
+  return { total, received, due: total - received };
+}
+
 // ---------- Stock ----------
 /** Finished stock per stock-quality: nakasi output − sales (mapped to stock quality) + adjustments. */
 export function finishedStock(

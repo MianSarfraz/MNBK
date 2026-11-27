@@ -1,5 +1,6 @@
 "use client";
 
+import { Logo } from "@/components/BillHeader";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
@@ -15,7 +16,7 @@ const GROUPS: { title: string; items: NavItem[] }[] = [
   { title: "Sales & stock", items: [
     { href: "/dashboard", k: "dashboard" }, { href: "/sales", k: "salesRegister" }, { href: "/payments", k: "paymentsRegister" },
     { href: "/customers", k: "customers" }, { href: "/stock", k: "stockSummary" }, { href: "/production", k: "productionRegister" },
-    { href: "/stock/opening", k: "openingStock" }, { href: "/sales-reports", k: "salesReports" }, { href: "/sales/invoices", k: "invoices" },
+    { href: "/stock/opening", k: "openingStock" }, { href: "/sales-reports", k: "salesReports" }, { href: "/sales/bill", k: "invoiceGenerator" }, { href: "/sales/invoices", k: "invoices" },
   ] },
   { title: "Kiln work", items: [...(PATHEER ? [{ href: "/weekly", k: "weekly" as Key }] : []), { href: "/rehra", k: "rehra" }, { href: "/gair", k: "gairCheck" }, { href: "/nakasi", k: "nakasi" }, ...(PATHEER ? [{ href: "/patheer", k: "patheer" as Key }] : []), { href: "/people/employee", k: "employees" }] },
   { title: "Money", items: [{ href: "/expenses", k: "expenseKhatta" }, { href: "/owners", k: "ownersTitle" }, { href: "/people/vendor", k: "vendors" }, { href: "/reports", k: "reports" }] },
@@ -70,7 +71,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
     <div className="min-h-screen pb-20 md:pb-0">
       <header className="no-print sticky top-0 z-30 border-b bg-sidebar text-sidebar-foreground">
         <div className="mx-auto flex h-10 max-w-7xl items-center gap-3 px-3">
-          <Link href="/dashboard" className="truncate text-base font-bold text-sidebar-primary">{t("appName")}</Link>
+          <Link href="/dashboard" className="flex items-center gap-1.5 truncate text-base font-bold text-sidebar-primary"><Logo size={26} />{t("appName")}</Link>
           <nav className="hidden min-w-0 flex-1 gap-0.5 overflow-x-auto md:flex">
             {DESKTOP.map((n) => (
               <Link key={n.href} href={n.href}

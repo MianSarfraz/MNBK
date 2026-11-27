@@ -1,5 +1,6 @@
 "use client";
 
+import { Logo } from "@/components/BillHeader";
 import { useEffect, useState, type ReactNode, type SelectHTMLAttributes } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -114,7 +115,7 @@ export function PrintHeader({ title, sub }: { title: ReactNode; sub?: ReactNode 
   const { t } = useT();
   return (
     <div className="print-only mb-4 border-b-2 border-primary pb-2 text-center">
-      <div className="text-2xl font-bold">{t("appName")}</div>
+      <div className="flex items-center justify-center gap-2 text-2xl font-bold"><Logo size={40} />{t("appName")}</div>
       <div className="text-lg">{title}</div>
       {sub && <div className="text-sm">{sub}</div>}
       <div className="num text-xs">{fmtDate(today())}</div>

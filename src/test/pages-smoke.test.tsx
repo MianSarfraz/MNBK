@@ -127,6 +127,7 @@ async function viewFor(path: string) {
   if (seg[0] === "people") { nav.params = { kind: seg[1]! }; return v(import("@/views/people")); }
   if (seg[0] === "sales" && seg[1] === "new") return v(import("@/views/new-sale"));
   if (seg[0] === "sales" && seg[1] === "invoices") return v(import("@/views/sales"));
+  if (seg[0] === "sales" && seg[1] === "bill") return v(import("@/views/bill"));
   if (seg[0] === "customers" && seg[1]) { nav.params = { id: seg[1] }; return v(import("@/views/customer")); }
   if (seg[0] === "stock" && seg[1] === "opening") return v(import("@/views/opening-stock"));
   if (seg[0] === "sales" && seg[1]) { nav.params = { id: seg[1] }; return v(import("@/views/invoice")); }
@@ -404,6 +405,39 @@ describe("start and close a gair", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Close gair" }));
     await waitFor(() => expect(WRITES.some((w) => w.table === "gairs" && w.op === "update")).toBe(true), { timeout: 4000 });
     expect(WRITES.find((w) => w.table === "gairs")!.payload).toHaveProperty("closed_on");
+    spy.mockRestore();
+  });
+});
+
+describe("invoice generator", () => {
+  it("prints one bill with the logo, owner and phone numbers, and the sale's totals", async () => {
+    const { spy } = await mount(`/sales/bill?ids=${SALE}`);
+    expect(await screen.findByText("Muhammad Nawaz", {}, { timeout: 4000 })).toBeInTheDocument();
+    expect(screen.getByText("0304-1586864 · 0300-7643507")).toBeInTheDocument();
+    expect(screen.getAllByAltText("Mian Nawaz Bricks").length).toBeGreaterThan(0);
+    expect((await screen.findAllByText("Rs 145,000", {}, { timeout: 4000 })).length).toBeGreaterThan(1); // picker row + bill total
+    expect(screen.getByText("Rs 45,000")).toBeInTheDocument(); // 145,000 − 100,000 received
+    expect((screen.getByLabelText("Bill to") as HTMLInputElement).value).toBe("Bashir");
+    spy.mockRestore();
+  });
+});
+
+describe("saved sales stay editable", () => {
+  it("changes a sale's customer (money moves with it) and the amount paid at sale", async () => {
+    WRITES.length = 0;
+    const { spy } = await mount("/sales");
+    const cust = await screen.findByLabelText("S-0001 Customer", {}, { timeout: 4000 });
+    fireEvent.change(cust, { target: { value: "cash-1" } });
+    await waitFor(() => expect(WRITES.some((w) => w.table === "transactions")).toBe(true), { timeout: 4000 });
+    expect(WRITES.find((w) => w.table === "sales")!.payload).toEqual({ customer_id: "cash-1" });
+    expect(WRITES.find((w) => w.table === "transactions")!.payload).toEqual({ party_id: "cash-1" });
+    WRITES.length = 0;
+    const paid = screen.getByLabelText("S-0001 Paid at sale");
+    fireEvent.focus(paid);
+    fireEvent.change(paid, { target: { value: "120000" } });
+    fireEvent.blur(paid);
+    await waitFor(() => expect(WRITES.some((w) => w.table === "transactions")).toBe(true), { timeout: 4000 });
+    expect(WRITES.find((w) => w.table === "transactions")!.payload).toEqual({ amount: 120000 });
     spy.mockRestore();
   });
 });

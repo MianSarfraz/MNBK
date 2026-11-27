@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { amountFor, canSell, gairCheck, kilnByWeek, kachaStore, lineAmount, customerAccount, invoiceTotal, periodKey, stockRow, summarize } from "@/lib/kiln-math";
+import { amountFor, billTotals, canSell, gairCheck, kilnByWeek, kachaStore, lineAmount, customerAccount, invoiceTotal, periodKey, stockRow, summarize } from "@/lib/kiln-math";
 
 describe("sale amounts (Quantity / 1000 × Rate)", () => {
   it("5,000 Awal at Rs 18,000 per 1,000 = Rs 90,000", () => expect(amountFor(5000, 18000)).toBe(90000));
@@ -103,5 +103,11 @@ describe("kiln in / out by week", () => {
       { week: "2026-11-26", inBricks: 1000, in9t: 0, inStore: 0, outBricks: 0, out9t: 0 },
       { week: "2026-11-19", inBricks: 50000, in9t: 5000, inStore: 10000, outBricks: 30000, out9t: 4000 },
     ]);
+  });
+});
+
+describe("combined bill", () => {
+  it("adds several sales and what was received against them", () => {
+    expect(billTotals([{ total: 90000, received: 50000 }, { total: 30000, received: 0 }, { total: 13000, received: 13000 }])).toEqual({ total: 133000, received: 63000, due: 70000 });
   });
 });
