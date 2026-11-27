@@ -334,3 +334,20 @@ describe("upgrade: gair names typed before become gairs", () => {
     expect(unlinked).toBe(0);
   }, 60_000);
 });
+
+describe("starting a gair adds entries already made in its dates", () => {
+  it("loads entered before pressing Start (on or after the start date) join the gair; earlier ones don't", async () => {
+    await q(`update gairs set closed_on = coalesce(closed_on, started_on)`); // nothing open
+    const rehra = (await one<{ id: string }>(`select id from parties where kind='rehra' and name='Rafiq'`)).id;
+    await q(`insert into kiln_entries (stage, party_id, entry_date, count, raw_type) values
+      ('rehra', $1, '2027-01-09', 111, 'brick'), ('rehra', $1, '2027-01-10', 2000, 'brick'), ('rehra', $1, '2027-01-11', 3000, '9t')`, [rehra]);
+    await q(`insert into kiln_entries (stage, entry_date, quality_id, count) values ('nakasi', '2027-01-11', $1, 700)`, [await type("Awal")]);
+    expect((await one<{ n: number }>(`select count(*)::int n from kiln_entries where entry_date >= '2027-01-09' and gair_id is null`)).n).toBe(4);
+    await q(`insert into gairs (number, started_on) values (20, '2027-01-10')`);
+    expect(await one(`select loaded_bricks, loaded_9t, produced_bricks from gair_check where number=20`)).toEqual({ loaded_bricks: 2000, loaded_9t: 3000, produced_bricks: 700 });
+    expect(await one(`select gair_id from kiln_entries where entry_date='2027-01-09'`)).toEqual({ gair_id: null });
+    // Moving the start back a day pulls that load in too.
+    await q(`update gairs set started_on='2027-01-09' where number=20`);
+    expect(await one(`select loaded_bricks from gair_check where number=20`)).toEqual({ loaded_bricks: 2111 });
+  });
+});

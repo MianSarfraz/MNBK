@@ -27,6 +27,13 @@ export function GairBar({ showCheckLink = true }: { showCheckLink?: boolean }) {
   const [busy, setBusy] = useState(false);
   const refresh = () => ["gairs", "gair-check", "kiln", "kiln-weekly", "production"].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
 
+  async function moveStart(g: Gair, d: string) {
+    if (!window.confirm(`${gairName(g)}: ${t("startedOn")} ${fmtDate(g.started_on)} → ${fmtDate(d)}?\n${t("editStartHelp")}`)) return;
+    const { error } = await supabase.from("gairs").update({ started_on: d }).eq("id", g.id);
+    if (error) return void toast.error(error.message);
+    toast.success(`${gairName(g)} — ${t("startedOn")} ${fmtDate(d)}`);
+    refresh();
+  }
   async function confirm() {
     if (!dlg) return;
     setBusy(true);
@@ -46,7 +53,10 @@ export function GairBar({ showCheckLink = true }: { showCheckLink?: boolean }) {
       {open.map((g) => (
         <span key={g.id} className="inline-flex items-center gap-2 rounded-lg border border-warning bg-warning/10 px-2 py-1">
           <span className="font-semibold">🔥 {gairName(g)}</span>
-          <span className="num text-xs text-muted-foreground">{t("since")} {fmtDate(g.started_on)} · {daysBetween(g.started_on, today()) + 1} {t("days")}</span>
+          <label className="num flex items-center gap-1 text-xs text-muted-foreground" title={t("editStartHelp")}>{t("since")}
+            <input type="date" className="h-7 rounded border bg-background px-1 text-foreground" value={g.started_on} max={today()} aria-label={`${t("startedOn")} ${gairName(g)}`}
+              onChange={(e) => e.target.value && e.target.value !== g.started_on && moveStart(g, e.target.value)} />
+            · {daysBetween(g.started_on, today()) + 1} {t("days")}</label>
           <Button size="sm" variant="outline" className="h-7" onClick={() => { setDate(today()); setDlg({ mode: "close", gair: g }); }}>{t("closeGair")}</Button>
         </span>
       ))}
