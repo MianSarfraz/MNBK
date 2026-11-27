@@ -55,6 +55,10 @@ const DB: Record<string, Record<string, unknown>[]> = {
   sale_lines: [{ item_id: "si1", sale_id: SALE, invoice_no: 1, entry_date: "2026-11-14", customer_id: C1, vehicle_no: "ABC-1", driver_name: "D", note: null, quality_id: QA, quantity: 10000, rate_per_1000: 14500, amount: 145000, season_id: S1 }],
   raw_stock: [{ made: 48500, loaded: 40000, adjusted: 0, balance: 8500, external: 0, stored: 0, drying: 8500 }],
   raw_store: [],
+  gair_check: [
+    { gair_key: "gair 7", gair: "Gair 7", first_date: "2026-11-13", last_date: "2026-11-20", loaded_bricks: 80000, loaded_9t: 8000, loaded_from_store: 20000, produced_bricks: 79000, produced_9t: 8000, diff_bricks: 1000, diff_9t: 0 },
+    { gair_key: "", gair: "", first_date: "2026-11-13", last_date: "2026-11-13", loaded_bricks: 40000, loaded_9t: 0, loaded_from_store: 0, produced_bricks: 30000, produced_9t: 0, diff_bricks: 10000, diff_9t: 0 },
+  ],
   raw_store_stock: [
     { raw_type: "brick", from_patheer: 0, outsourced: 20000, opening: 0, adjusted: 0, used: 5000, balance: 15000 },
     { raw_type: "9t", from_patheer: 0, outsourced: 0, opening: 0, adjusted: 0, used: 0, balance: 0 },
@@ -124,7 +128,7 @@ async function viewFor(path: string) {
   if (seg[0] === "sales" && seg[1]) { nav.params = { id: seg[1] }; return v(import("@/views/invoice")); }
   if (seg[0] === "patheer") { const { PartyList } = await import("@/components/PartyList"); return () => <PartyList kind="patheer" />; }
   if (seg[0] === "rehra" || seg[0] === "nakasi") { const { KilnWeek } = await import("@/components/KilnWeek"); const st = seg[0]; return () => <KilnWeek stage={st} />; }
-  const map: Record<string, string> = { dashboard: "dashboard", weekly: "weekly", sales: "sales-register", payments: "payments", customers: "customers", production: "production", "sales-reports": "sales-reports", stock: "stock", expenses: "expenses", owners: "owners", reports: "reports", history: "history", seasons: "seasons", qualities: "qualities" };
+  const map: Record<string, string> = { dashboard: "dashboard", weekly: "weekly", sales: "sales-register", payments: "payments", customers: "customers", production: "production", "sales-reports": "sales-reports", stock: "stock", expenses: "expenses", owners: "owners", reports: "reports", history: "history", seasons: "seasons", qualities: "qualities", gair: "gair" };
   return v(import(`@/views/${map[seg[0]!]}.tsx`));
 }
 
@@ -150,6 +154,7 @@ const PAGES: [string, RegExp][] = [
   ["/weekly", /Add entry for any date/],
   ["/patheer", /Akram/],
   ["/rehra", /Rehra khatta/],
+  ["/gair", /Gair check/],
   ["/nakasi", /Nakasi khatta/],
   ["/sales", /Bashir/],
   ["/sales/new", /Save invoice/],
@@ -342,7 +347,8 @@ describe("rehra khatta", () => {
     expect(count).toHaveAttribute("title", expect.stringMatching(/More than in the kacha store/)); // 0 9t tiles in store
     fireEvent.keyDown(count, { key: "Enter" });
     await waitFor(() => expect(WRITES.some((w) => w.table === "kiln_entries")).toBe(true), { timeout: 4000 });
-    expect(WRITES.find((w) => w.table === "kiln_entries")!.payload).toMatchObject({ stage: "rehra", raw_type: "9t", from_store: true, source_party_id: null, count: 100 });
+    // Gair defaults to the latest gair, so loads are checked without typing it each time.
+    expect(WRITES.find((w) => w.table === "kiln_entries")!.payload).toMatchObject({ stage: "rehra", raw_type: "9t", from_store: true, source_party_id: null, count: 100, firing_ref: "Gair 7" });
     // Outsource supplier stacks bricks in the store
     fireEvent.change(screen.getByLabelText("Supplier name"), { target: { value: "Haji Bhatta" } });
     const bricks = screen.getAllByLabelText("Bricks").at(-1)!;
@@ -350,6 +356,20 @@ describe("rehra khatta", () => {
     fireEvent.keyDown(bricks, { key: "Enter" });
     await waitFor(() => expect(WRITES.some((w) => w.table === "raw_store")).toBe(true), { timeout: 4000 });
     expect(WRITES.find((w) => w.table === "raw_store")!.payload).toMatchObject({ source: "outsource", supplier: "Haji Bhatta", raw_type: "brick", count: 20000 });
+    spy.mockRestore();
+  });
+});
+
+describe("gair check", () => {
+  it("shows kacha in vs pakki out per gair, the loss, loads with no gair, and the unused store", async () => {
+    const { spy } = await mount("/gair");
+    expect(await screen.findByText("Gair 7", {}, { timeout: 4000 })).toBeInTheDocument();
+    expect(screen.getAllByText("80,000").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("79,000").length).toBeGreaterThan(0);
+    expect(screen.getByText(/short 1\.3%/)).toBeInTheDocument();
+    expect(screen.getAllByText(/Equal/).length).toBeGreaterThan(0); // 9t: 8,000 in, 8,000 out
+    expect(screen.getByText(/Rehra loads with no gair/)).toBeInTheDocument();
+    expect(screen.getByText("In kacha store (not in any gair yet)")).toBeInTheDocument();
     spy.mockRestore();
   });
 });

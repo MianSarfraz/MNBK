@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { amountFor, canSell, kachaStore, lineAmount, customerAccount, invoiceTotal, periodKey, stockRow, summarize } from "@/lib/kiln-math";
+import { amountFor, canSell, gairCheck, kachaStore, lineAmount, customerAccount, invoiceTotal, periodKey, stockRow, summarize } from "@/lib/kiln-math";
 
 describe("sale amounts (Quantity / 1000 × Rate)", () => {
   it("5,000 Awal at Rs 18,000 per 1,000 = Rs 90,000", () => expect(amountFor(5000, 18000)).toBe(90000));
@@ -80,4 +80,10 @@ describe("kacha store", () => {
   it("only corrections may be negative", () => {
     expect(() => kachaStore([{ raw_type: "brick", source: "outsource", count: -5 }], [])).toThrow();
   });
+});
+
+describe("gair check", () => {
+  it("80,000 kacha in, 79,000 pakki out → 1,000 short (1.3%)", () => expect(gairCheck(80000, 79000)).toEqual({ difference: 1000, status: "short", lossPermille: 13 }));
+  it("equal when everything loaded came out", () => expect(gairCheck(8000, 8000).status).toBe("equal"));
+  it("more out than in is flagged (a load missing its gair)", () => expect(gairCheck(1000, 1500)).toMatchObject({ difference: -500, status: "over" }));
 });

@@ -196,6 +196,18 @@ export async function addBrickType(name: string, category: BrickCategory, existi
   return error ? error.message : null;
 }
 
+/** Every gair (kiln round): kacha loaded vs pakki out. */
+export function useGairs() {
+  return useQuery({
+    queryKey: ["gair-check"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("gair_check").select("*").order("last_date", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
 /** Kacha store balance per type (bricks / 9t tiles). */
 export function useKachaStock() {
   return useQuery({

@@ -967,6 +967,22 @@ export type Database = {
         }
         Relationships: []
       }
+      gair_check: {
+        Row: {
+          diff_9t: number | null
+          diff_bricks: number | null
+          first_date: string | null
+          gair: string | null
+          gair_key: string | null
+          last_date: string | null
+          loaded_9t: number | null
+          loaded_bricks: number | null
+          loaded_from_store: number | null
+          produced_9t: number | null
+          produced_bricks: number | null
+        }
+        Relationships: []
+      }
       raw_store_stock: {
         Row: {
           adjusted: number | null

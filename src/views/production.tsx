@@ -8,7 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import { fmt, fmtDate, fmtMonth, useT } from "@/lib/i18n";
 import { addDays, monthEnd, monthStart, parseWhole, summarize } from "@/lib/kiln-math";
-import { fetchAll, myId, today, useBrickTypes, useParties, useQualities } from "@/lib/data";
+import { fetchAll, myId, today, useBrickTypes, useGairs, useParties, useQualities } from "@/lib/data";
 import { downloadExcel } from "@/lib/export";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -23,6 +23,7 @@ export default function ProductionPage() {
   const { t } = useT();
   const qc = useQueryClient();
   const types = useBrickTypes();
+  const gairs = useGairs();
   const allQualities = useQualities();
   const workers = useParties("nakasi");
   const [month, setMonth] = useState(monthStart(today()));
@@ -49,7 +50,9 @@ export default function ProductionPage() {
 
   return (
     <div className="space-y-3">
+      <datalist id="gair-list">{(gairs.data ?? []).filter((g) => g.gair).map((g) => <option key={g.gair_key} value={g.gair!} />)}</datalist>
       <PageHeader title={t("productionRegister")} sub={t("productionHelp")} actions={<>
+        <Link href="/gair" className="inline-flex h-9 items-center rounded-md border bg-card px-3 text-sm">{t("gairCheck")}</Link>
         <Link href="/stock" className="inline-flex h-9 items-center rounded-md border bg-card px-3 text-sm">{t("stockSummary")} →</Link>
         <Button variant="outline" size="sm" onClick={() => downloadExcel(`production-${allTime ? "all" : month.slice(0, 7)}`, [
           { name: "Production", rows: [["Date", "Firing", "Brick type", "Quantity", "Worker", "Notes"], ...rows.map((r) => [r.entry_date, r.firing_ref ?? "", typeName(r.quality_id), Number(r.count), (workers.data ?? []).find((w) => w.id === r.party_id)?.name ?? "", r.notes ?? ""])] },
@@ -84,7 +87,7 @@ export default function ProductionPage() {
             <tr key={r.id} className={i > 0 && rows[i - 1]!.entry_date !== r.entry_date ? "day-start" : ""}>
               <td className="rn">{i + 1}</td>
               <td className="c"><Cell type="date" value={r.entry_date} dim={i > 0 && rows[i - 1]!.entry_date === r.entry_date} onCommit={(v) => v && update(r.id, { entry_date: v })} /></td>
-              <td className="c"><Cell value={r.firing_ref ?? ""} placeholder="—" onCommit={(v) => update(r.id, { firing_ref: v.trim() || null })} /></td>
+              <td className="c"><Cell value={r.firing_ref ?? ""} list="gair-list" placeholder="—" onCommit={(v) => update(r.id, { firing_ref: v.trim() || null })} /></td>
               <td className="c"><select className="cell" value={r.quality_id ?? ""} onChange={(e) => update(r.id, { quality_id: e.target.value })}>
                 {!(types.data ?? []).some((x) => x.id === r.quality_id) && <option value={r.quality_id ?? ""}>{typeName(r.quality_id)}</option>}
                 {(types.data ?? []).map((x) => <option key={x.id} value={x.id}>{x.name_en}</option>)}
@@ -155,7 +158,7 @@ function NewProductionRow({ n, types, workers, last, onSaved }: {
     <tr className="new no-print">
       <td className="rn">{n}</td>
       <td className="c"><input className="cell" type="date" value={date} onChange={(e) => setF({ ...f, date: e.target.value })} /></td>
-      <td className="c"><input className="cell" placeholder={t("firingExample")} value={firing} onChange={(e) => setF({ ...f, firing: e.target.value })} onKeyDown={enter} /></td>
+      <td className="c"><input className="cell" list="gair-list" placeholder={t("firingExample")} value={firing} onChange={(e) => setF({ ...f, firing: e.target.value })} onKeyDown={enter} /></td>
       <td className="c"><select className="cell" value={f.type} onChange={(e) => setF({ ...f, type: e.target.value })} aria-label={t("brickType")}>
         <option value="">{t("brickType")}…</option>{types.map((x) => <option key={x.id} value={x.id}>{x.name_en}</option>)}
       </select></td>

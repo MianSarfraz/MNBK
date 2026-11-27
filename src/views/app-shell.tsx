@@ -16,7 +16,7 @@ const GROUPS: { title: string; items: NavItem[] }[] = [
     { href: "/customers", k: "customers" }, { href: "/stock", k: "stockSummary" }, { href: "/production", k: "productionRegister" },
     { href: "/stock/opening", k: "openingStock" }, { href: "/sales-reports", k: "salesReports" }, { href: "/sales/invoices", k: "invoices" },
   ] },
-  { title: "Kiln work", items: [{ href: "/weekly", k: "weekly" }, { href: "/rehra", k: "rehra" }, { href: "/nakasi", k: "nakasi" }, { href: "/patheer", k: "patheer" }, { href: "/people/employee", k: "employees" }] },
+  { title: "Kiln work", items: [{ href: "/weekly", k: "weekly" }, { href: "/rehra", k: "rehra" }, { href: "/gair", k: "gairCheck" }, { href: "/nakasi", k: "nakasi" }, { href: "/patheer", k: "patheer" }, { href: "/people/employee", k: "employees" }] },
   { title: "Money", items: [{ href: "/expenses", k: "expenseKhatta" }, { href: "/owners", k: "ownersTitle" }, { href: "/people/vendor", k: "vendors" }, { href: "/reports", k: "reports" }] },
   { title: "Settings", items: [{ href: "/qualities", k: "qualities" }, { href: "/seasons", k: "seasons" }, { href: "/history", k: "history" }] },
 ];

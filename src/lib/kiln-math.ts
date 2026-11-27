@@ -265,6 +265,16 @@ export function kachaStore(
   return out;
 }
 
+/** Gair check: kacha loaded into a gair vs pakki bricks out of it. difference > 0 = fewer came out (loss / breakage).
+ *  Mirrors SQL view public.gair_check (diff = loaded − produced). */
+export function gairCheck(loaded: number, produced: number) {
+  const difference = loaded - produced;
+  const status: "equal" | "short" | "over" | "empty" = !loaded && !produced ? "empty" : difference === 0 ? "equal" : difference > 0 ? "short" : "over";
+  // Share of the loaded bricks that didn't come out, in tenths of a percent (integer math).
+  const lossPermille = loaded > 0 ? Math.round((difference * 1000) / loaded) : 0;
+  return { difference, status, lossPermille };
+}
+
 // ---------- Stock ----------
 /** Finished stock per stock-quality: nakasi output − sales (mapped to stock quality) + adjustments. */
 export function finishedStock(

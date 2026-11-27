@@ -278,3 +278,22 @@ describe("rehra and the kacha store", () => {
     expect(r).toEqual({ external: 25000 - 1000, stored: 37000 + 3000 });
   });
 });
+
+describe("gair check", () => {
+  const rehraId = async () => (await one<{ id: string }>(`select id from parties where kind='rehra' and name='Rafiq'`)).id;
+  const gair = (g: string) => one(`select loaded_bricks, loaded_9t, loaded_from_store, produced_bricks, produced_9t, diff_bricks, diff_9t from gair_check where gair_key=$1`, [g]);
+  it("compares kacha loaded into a gair with pakki out of it, bricks and 9t separately; store bricks count only when loaded", async () => {
+    const storeBefore = (await one<{ balance: number }>(`select balance from raw_store_stock where raw_type='brick'`)).balance;
+    await q(`insert into raw_store (entry_date, raw_type, source, supplier, count) values ('2026-11-24', 'brick', 'outsource', 'Haji Bhatta', 50000)`);
+    await q(`insert into kiln_entries (stage, party_id, entry_date, count, raw_type, from_store, firing_ref) values
+      ('rehra', $1, '2026-11-24', 60000, 'brick', false, 'Gair 7'),
+      ('rehra', $1, '2026-11-24', 20000, 'brick', true, 'gair 7 '),
+      ('rehra', $1, '2026-11-25', 8000, '9t', false, 'Gair 7')`, [await rehraId()]);
+    await q(`insert into kiln_entries (stage, entry_date, quality_id, count, firing_ref) values
+      ('nakasi', '2026-12-01', $1, 50000, 'Gair 7'), ('nakasi', '2026-12-01', $2, 29000, 'Gair 7'), ('nakasi', '2026-12-01', $3, 8000, 'GAIR 7')`,
+      [await type("Awal"), await type("Doum"), await type("9t Awal")]);
+    expect(await gair("gair 7")).toEqual({ loaded_bricks: 80000, loaded_9t: 8000, loaded_from_store: 20000, produced_bricks: 79000, produced_9t: 8000, diff_bricks: 1000, diff_9t: 0 });
+    // The other 30,000 stacked bricks are still in the store, outside any gair.
+    expect((await one<{ balance: number }>(`select balance from raw_store_stock where raw_type='brick'`)).balance).toBe(storeBefore + 50000 - 20000);
+  });
+});
