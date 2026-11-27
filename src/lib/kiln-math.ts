@@ -77,6 +77,11 @@ export function addDays(s: string, n: number) {
   return iso(d);
 }
 /** The Thursday on or before the given date. */
+/** Whole days from a to b (b − a). */
+export function daysBetween(a: string, b: string) {
+  return Math.round((toDate(b).getTime() - toDate(a).getTime()) / 86_400_000);
+}
+
 export function weekStart(s: string) {
   const dow = toDate(s).getUTCDay(); // 0 Sun … 4 Thu
   return addDays(s, -((dow - 4 + 7) % 7));

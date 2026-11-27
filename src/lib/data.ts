@@ -196,6 +196,25 @@ export async function addBrickType(name: string, category: BrickCategory, existi
   return error ? error.message : null;
 }
 
+/** All gairs, newest first. */
+export function useGairList() {
+  return useQuery({
+    queryKey: ["gairs"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("gairs").select("*").is("deleted_at", null).order("number", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+export const gairName = (g: { number: number | null; label?: string | null } | null | undefined) =>
+  !g ? "" : g.label?.trim() || `Gair ${g.number}`;
+/** The open gair a new entry goes to: rehra → newest open, nakasi → oldest open (mirrors SQL fill_gair). */
+export function openGairFor<G extends { id: string; number: number; closed_on: string | null; started_on: string }>(gairs: G[], stage: "rehra" | "nakasi", date: string) {
+  const open = gairs.filter((g) => !g.closed_on && g.started_on <= date).sort((a, b) => a.number - b.number);
+  return (stage === "rehra" ? open.at(-1) : open[0]) ?? null;
+}
+
 /** Every gair (kiln round): kacha loaded vs pakki out. */
 export function useGairs() {
   return useQuery({

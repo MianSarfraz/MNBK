@@ -607,6 +607,7 @@ export type Database = {
           notes: string | null
           party_id: string | null
           quality_id: string | null
+          gair_id: string | null
           from_store: boolean
           raw_type: string
           season_id: string
@@ -627,6 +628,7 @@ export type Database = {
           notes?: string | null
           party_id?: string | null
           quality_id?: string | null
+          gair_id?: string | null
           from_store?: boolean
           raw_type?: string
           season_id?: string
@@ -647,6 +649,7 @@ export type Database = {
           notes?: string | null
           party_id?: string | null
           quality_id?: string | null
+          gair_id?: string | null
           from_store?: boolean
           raw_type?: string
           season_id?: string
@@ -655,6 +658,48 @@ export type Database = {
           updated_at?: string
           updated_by?: string | null
           week_id?: string
+        }
+        Relationships: []
+      }
+      gairs: {
+        Row: {
+          id: string
+          number: number
+          label: string | null
+          started_on: string
+          closed_on: string | null
+          notes: string | null
+          created_by: string
+          updated_by: string | null
+          created_at: string
+          updated_at: string
+          deleted_at: string | null
+        }
+        Insert: {
+          id?: string
+          number: number
+          label?: string | null
+          started_on: string
+          closed_on?: string | null
+          notes?: string | null
+          created_by?: string
+          updated_by?: string | null
+          created_at?: string
+          updated_at?: string
+          deleted_at?: string | null
+        }
+        Update: {
+          id?: string
+          number?: number
+          label?: string | null
+          started_on?: string
+          closed_on?: string | null
+          notes?: string | null
+          created_by?: string
+          updated_by?: string | null
+          created_at?: string
+          updated_at?: string
+          deleted_at?: string | null
         }
         Relationships: []
       }
@@ -969,17 +1014,20 @@ export type Database = {
       }
       gair_check: {
         Row: {
+          closed_on: string | null
           diff_9t: number | null
           diff_bricks: number | null
           first_date: string | null
           gair: string | null
-          gair_key: string | null
+          gair_id: string | null
           last_date: string | null
           loaded_9t: number | null
           loaded_bricks: number | null
           loaded_from_store: number | null
+          number: number | null
           produced_9t: number | null
           produced_bricks: number | null
+          started_on: string | null
         }
         Relationships: []
       }

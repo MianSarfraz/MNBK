@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Empty, PageHeader, PrintHeader } from "@/components/kit";
 import { KachaStoreCards } from "@/components/KachaStore";
 import { KilnWeeklyTable } from "@/components/KilnWeeklyTable";
+import { GairBar } from "@/components/GairBar";
 import { LetterRow, Sheet } from "@/components/sheet";
 
 /** Gair check: kacha bricks loaded into each gair (fresh + from the kacha store) vs pakki bricks out, per kind. */
@@ -16,14 +17,14 @@ export default function GairPage() {
   const { t } = useT();
   const q = useGairs();
   const all = q.data ?? [];
-  const rows = all.filter((g) => g.gair_key);
-  const unassigned = all.find((g) => !g.gair_key);
+  const rows = all.filter((g) => g.gair_id).sort((a, b) => Number(b.number) - Number(a.number));
+  const unassigned = all.find((g) => !g.gair_id);
   const noGairLoads = Number(unassigned?.loaded_bricks ?? 0) + Number(unassigned?.loaded_9t ?? 0);
 
   function exportXls() {
     downloadExcel("gair-check", [{ name: "Gair check", rows: [
-      ["Gair", "From", "To", "Kacha bricks in", "of which from store", "Pakki bricks out", "Difference", "Kacha 9t in", "Pakki 9t out", "Difference (9t)"],
-      ...rows.map((g) => [g.gair ?? "", g.first_date ?? "", g.last_date ?? "", Number(g.loaded_bricks), Number(g.loaded_from_store), Number(g.produced_bricks), Number(g.diff_bricks), Number(g.loaded_9t), Number(g.produced_9t), Number(g.diff_9t)]),
+      ["Gair", "Started", "Closed", "Kacha bricks in", "of which from store", "Pakki bricks out", "Difference", "Kacha 9t in", "Pakki 9t out", "Difference (9t)"],
+      ...rows.map((g) => [g.gair ?? "", g.started_on ?? "", g.closed_on ?? "open", Number(g.loaded_bricks), Number(g.loaded_from_store), Number(g.produced_bricks), Number(g.diff_bricks), Number(g.loaded_9t), Number(g.produced_9t), Number(g.diff_9t)]),
     ] }]);
   }
 
@@ -35,12 +36,13 @@ export default function GairPage() {
         <Link href="/production" className="inline-flex h-9 items-center rounded-md border bg-card px-3 text-sm">{t("productionRegister")}</Link>
         <Button variant="outline" size="sm" onClick={exportXls}>Excel</Button>
       </>} />
+      <GairBar showCheckLink={false} />
 
       <Sheet minWidth={980}>
         <thead>
           <LetterRow cols={10} />
           <tr>
-            <th className="rn" rowSpan={2}>#</th><th rowSpan={2}>{t("firingRef")}</th><th rowSpan={2} className="w-40">{t("date")}</th>
+            <th className="rn" rowSpan={2}>#</th><th rowSpan={2}>{t("firingRef")}</th><th rowSpan={2} className="w-44">{t("startedOn")} → {t("closedOn").toLowerCase()}</th>
             <th colSpan={4} className="text-center">{t("rawBrick")}</th><th colSpan={3} className="text-center">{t("raw9t")}</th>
           </tr>
           <tr>
@@ -50,10 +52,10 @@ export default function GairPage() {
         </thead>
         <tbody>
           {rows.map((g, i) => (
-            <tr key={g.gair_key}>
+            <tr key={g.gair_id} className={g.closed_on ? "" : "bg-warning/5"}>
               <td className="rn">{i + 1}</td>
-              <td className="font-semibold">{g.gair}</td>
-              <td className="num text-xs">{fmtDate(g.first_date)}{g.last_date !== g.first_date ? ` → ${fmtDate(g.last_date)}` : ""}</td>
+              <td className="font-semibold">{g.closed_on ? "" : "🔥 "}{g.gair}</td>
+              <td className="num text-xs">{fmtDate(g.started_on)} → {g.closed_on ? fmtDate(g.closed_on) : <span className="font-sans font-semibold text-warning-foreground">{t("gairOpen")}</span>}</td>
               <td className="n num">{fmt(Number(g.loaded_bricks))}</td>
               <td className="n num ro">{Number(g.loaded_from_store) ? fmt(Number(g.loaded_from_store)) : ""}</td>
               <td className="n num">{fmt(Number(g.produced_bricks))}</td>

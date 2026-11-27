@@ -55,9 +55,13 @@ const DB: Record<string, Record<string, unknown>[]> = {
   sale_lines: [{ item_id: "si1", sale_id: SALE, invoice_no: 1, entry_date: "2026-11-14", customer_id: C1, vehicle_no: "ABC-1", driver_name: "D", note: null, quality_id: QA, quantity: 10000, rate_per_1000: 14500, amount: 145000, season_id: S1 }],
   raw_stock: [{ made: 48500, loaded: 40000, adjusted: 0, balance: 8500, external: 0, stored: 0, drying: 8500 }],
   raw_store: [],
+  gairs: [
+    { ...base, id: "g6", number: 6, label: null, started_on: "2026-10-01", closed_on: "2026-11-12", notes: null },
+    { ...base, id: "g7", number: 7, label: null, started_on: "2026-11-13", closed_on: null, notes: null },
+  ],
   gair_check: [
-    { gair_key: "gair 7", gair: "Gair 7", first_date: "2026-11-13", last_date: "2026-11-20", loaded_bricks: 80000, loaded_9t: 8000, loaded_from_store: 20000, produced_bricks: 79000, produced_9t: 8000, diff_bricks: 1000, diff_9t: 0 },
-    { gair_key: "", gair: "", first_date: "2026-11-13", last_date: "2026-11-13", loaded_bricks: 40000, loaded_9t: 0, loaded_from_store: 0, produced_bricks: 30000, produced_9t: 0, diff_bricks: 10000, diff_9t: 0 },
+    { gair_id: "g7", number: 7, gair: "Gair 7", started_on: "2026-11-13", closed_on: null, first_date: "2026-11-13", last_date: "2026-11-20", loaded_bricks: 80000, loaded_9t: 8000, loaded_from_store: 20000, produced_bricks: 79000, produced_9t: 8000, diff_bricks: 1000, diff_9t: 0 },
+    { gair_id: null, number: null, gair: null, started_on: null, closed_on: null, first_date: "2026-11-13", last_date: "2026-11-13", loaded_bricks: 40000, loaded_9t: 0, loaded_from_store: 0, produced_bricks: 30000, produced_9t: 0, diff_bricks: 10000, diff_9t: 0 },
   ],
   raw_store_stock: [
     { raw_type: "brick", from_patheer: 0, outsourced: 20000, opening: 0, adjusted: 0, used: 5000, balance: 15000 },
@@ -347,6 +351,9 @@ describe("rehra khatta", () => {
     expect((await screen.findAllByText("40,000")).length).toBeGreaterThan(1);
     expect((await screen.findAllByText("30,000")).length).toBeGreaterThan(0);
     // New load from the store
+    expect((await screen.findAllByText("🔥 Gair 7")).length).toBeGreaterThan(0); // the open gair (bar + drop-downs)
+    expect(screen.getAllByRole("button", { name: "Close gair" }).length).toBe(1);
+    expect(screen.getAllByText("🔥 Gair 7 (auto)").length).toBeGreaterThan(0);
     fireEvent.change(screen.getAllByLabelText("Rehra").at(-1)!, { target: { value: R1 } });
     fireEvent.change(screen.getAllByLabelText("What").at(0)!.closest("table")!.querySelectorAll("tr.new select[aria-label='What']")[0]!, { target: { value: "9t" } });
     const from = screen.getAllByLabelText("From").at(-1)!;
@@ -356,8 +363,8 @@ describe("rehra khatta", () => {
     expect(count).toHaveAttribute("title", expect.stringMatching(/More than in the kacha store/)); // 0 9t tiles in store
     fireEvent.keyDown(count, { key: "Enter" });
     await waitFor(() => expect(WRITES.some((w) => w.table === "kiln_entries")).toBe(true), { timeout: 4000 });
-    // Gair defaults to the latest gair, so loads are checked without typing it each time.
-    expect(WRITES.find((w) => w.table === "kiln_entries")!.payload).toMatchObject({ stage: "rehra", raw_type: "9t", from_store: true, source_party_id: null, count: 100, firing_ref: "Gair 7" });
+    // Gair is left on "auto": the database marks the load with the open gair (shown as 🔥 Gair 7 (auto)).
+    expect(WRITES.find((w) => w.table === "kiln_entries")!.payload).toMatchObject({ stage: "rehra", raw_type: "9t", from_store: true, source_party_id: null, count: 100, gair_id: null });
     // Outsource supplier stacks bricks in the store
     fireEvent.change(screen.getByLabelText("Supplier name"), { target: { value: "Haji Bhatta" } });
     const bricks = screen.getAllByLabelText("Bricks").at(-1)!;
@@ -372,13 +379,31 @@ describe("rehra khatta", () => {
 describe("gair check", () => {
   it("shows kacha in vs pakki out per gair, the loss, loads with no gair, and the unused store", async () => {
     const { spy } = await mount("/gair");
-    expect(await screen.findByText("Gair 7", {}, { timeout: 4000 })).toBeInTheDocument();
+    expect((await screen.findAllByText(/Gair 7/, {}, { timeout: 4000 })).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("open").length).toBeGreaterThan(0);
     expect(screen.getAllByText("80,000").length).toBeGreaterThan(0);
     expect(screen.getAllByText("79,000").length).toBeGreaterThan(0);
     expect(screen.getByText(/short 1\.3%/)).toBeInTheDocument();
     expect(screen.getAllByText(/Equal/).length).toBeGreaterThan(0); // 9t: 8,000 in, 8,000 out
     expect(screen.getByText(/Rehra loads with no gair/)).toBeInTheDocument();
     expect(screen.getByText("In kacha store (not in any gair yet)")).toBeInTheDocument();
+    spy.mockRestore();
+  });
+});
+
+describe("start and close a gair", () => {
+  it("Start Gair 8 creates the next gair; Close gair sets its close date", async () => {
+    WRITES.length = 0;
+    const { spy } = await mount("/nakasi");
+    fireEvent.click(await screen.findByRole("button", { name: "+ Start Gair 8" }, { timeout: 4000 }));
+    fireEvent.click(await screen.findByRole("button", { name: "Start Gair" }));
+    await waitFor(() => expect(WRITES.some((w) => w.table === "gairs")).toBe(true), { timeout: 4000 });
+    expect(WRITES.find((w) => w.table === "gairs")!.payload).toMatchObject({ number: 8 });
+    WRITES.length = 0;
+    fireEvent.click(await screen.findByRole("button", { name: "Close gair" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Close gair" }));
+    await waitFor(() => expect(WRITES.some((w) => w.table === "gairs" && w.op === "update")).toBe(true), { timeout: 4000 });
+    expect(WRITES.find((w) => w.table === "gairs")!.payload).toHaveProperty("closed_on");
     spy.mockRestore();
   });
 });

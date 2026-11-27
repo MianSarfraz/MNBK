@@ -8,10 +8,11 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import { fmt, fmtDate, useT } from "@/lib/i18n";
 import { amountAtRates, parseWhole, type Rate, type RawType } from "@/lib/kiln-math";
-import { errMsg, myId, today, useGairs, useKachaStock, useParties, useQualities, useRates } from "@/lib/data";
+import { errMsg, gairName, myId, openGairFor, today, useGairList, useKachaStock, useParties, useQualities, useRates } from "@/lib/data";
 import { KachaStore, RAW_TYPES } from "@/components/KachaStore";
 import { PATHEER } from "@/lib/features";
 import { KilnWeeklyTable } from "@/components/KilnWeeklyTable";
+import { GairBar, GairSelect } from "@/components/GairBar";
 import { Button } from "@/components/ui/button";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { KharchaSheet } from "@/components/KharchaSheet";
@@ -69,14 +70,14 @@ export function KilnWeek({ stage }: { stage: Stage }) {
     qc.invalidateQueries({ queryKey: ["ledgers"] });
   };
 
-  async function insertEntry(p: { party_id: string; count: number; quality_id: string | null; source_party_id?: string | null; entry_date: string; notes?: string | null; raw_type?: RawType; from_store?: boolean; firing_ref?: string | null }) {
+  async function insertEntry(p: { party_id: string; count: number; quality_id: string | null; source_party_id?: string | null; entry_date: string; notes?: string | null; raw_type?: RawType; from_store?: boolean; gair_id?: string | null }) {
     // Week and season are filled in by the database from the date.
     const { error } = await supabase.from("kiln_entries").insert({ stage, created_by: await myId(), ...p });
     if (error) { toast.error(error.message); return false; }
     refresh();
     return true;
   }
-  async function updateEntry(id: string, patch: Partial<Pick<Entry, "count" | "deleted_at" | "entry_date" | "quality_id" | "source_party_id" | "notes" | "raw_type" | "from_store" | "firing_ref">>) {
+  async function updateEntry(id: string, patch: Partial<Pick<Entry, "count" | "deleted_at" | "entry_date" | "quality_id" | "source_party_id" | "notes" | "raw_type" | "from_store" | "gair_id">>) {
     const { error } = await supabase.from("kiln_entries").update(patch).eq("id", id);
     if (error) toast.error(error.message);
     refresh();
@@ -134,9 +135,9 @@ export function KilnWeek({ stage }: { stage: Stage }) {
   const patheerOpts = PATHEER ? (patheers.data ?? []).filter((p) => p.is_active) : [];
   const kharchaRows = totals.map(({ w, bricks, earn, kh, hasRate }) => ({ id: w.id, name: w.name, bricks, earn, suggested: kh, noRate: !hasRate }));
   const sorted = entries.slice().sort((x, y) => x.entry_date.localeCompare(y.entry_date) || x.created_at.localeCompare(y.created_at));
-  const entryCols = stage === "rehra" ? 8 : 6;
-  const gairs = useGairs();
-  const lastGair = sorted.slice().reverse().find((e) => e.firing_ref)?.firing_ref ?? (gairs.data ?? []).find((g) => g.gair)?.gair ?? "";
+  const entryCols = stage === "rehra" ? 8 : 7;
+  const gairList = useGairList();
+  const gairs = gairList.data ?? [];
 
   return (
     <div className="space-y-3">
@@ -146,6 +147,7 @@ export function KilnWeek({ stage }: { stage: Stage }) {
           <Link href={`/people/${stage}`} className="inline-flex h-9 items-center rounded-md border bg-card px-3 text-sm">{t("workersAndLedgers")}</Link>
         </>} />
       <WeekPicker nav={nav} />
+      <GairBar />
 
       <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
         {stage === "rehra" ? (<>
@@ -245,7 +247,8 @@ export function KilnWeek({ stage }: { stage: Stage }) {
               <LetterRow cols={entryCols} />
               <tr>
                 <th className="rn">#</th><th className="w-36">{t("date")}</th><th>{t(stage)}</th>
-                {stage === "rehra" ? <><th className="w-28">{t("firingRef")}</th><th className="w-28">{t("rawType")}</th><th>{t("fromCol")}</th></> : <th>{t("quality")}</th>}
+                <th className="w-32">{t("firingRef")}</th>
+                {stage === "rehra" ? <><th className="w-28">{t("rawType")}</th><th>{t("fromCol")}</th></> : <th>{t("quality")}</th>}
                 <th className="n w-28">{t("bricksCol")}</th><th>{t("note")}</th><th className="w-10" />
               </tr>
             </thead>
@@ -256,9 +259,8 @@ export function KilnWeek({ stage }: { stage: Stage }) {
                   <td className="c"><Cell type="date" value={e.entry_date} disabled={readOnly} dim={i > 0 && sorted[i - 1]!.entry_date === e.entry_date}
                     onCommit={(v) => { if (v) { updateEntry(e.id, { entry_date: v }); if (v < start || v > end) nav.go(v); } }} /></td>
                   <td className="whitespace-nowrap">{pName(e.party_id)}</td>
+                  <td className="c"><GairSelect value={e.gair_id ?? ""} gairs={gairs} disabled={readOnly} bad={!e.gair_id} onChange={(v) => updateEntry(e.id, { gair_id: v || null })} /></td>
                   {stage === "rehra" ? (<>
-                    <td className="c"><Cell value={e.firing_ref ?? ""} list="gair-list" placeholder="—" disabled={readOnly} bad={!e.firing_ref}
-                      onCommit={(v) => updateEntry(e.id, { firing_ref: v.trim() || null })} /></td>
                     <td className="c">
                       <select className="cell" value={e.raw_type} disabled={readOnly} onChange={(ev) => updateEntry(e.id, { raw_type: ev.target.value })} aria-label={t("rawType")}>
                         {RAW_TYPES.map(({ v, k }) => <option key={v} value={v}>{t(k)}</option>)}
@@ -281,11 +283,11 @@ export function KilnWeek({ stage }: { stage: Stage }) {
                 </tr>
               ))}
               {!readOnly && (
-                <KilnNewRow stage={stage} n={sorted.length + 1} workers={activeWorkers} qualities={qualityOpts} patheers={patheerOpts} defaultDate={sorted.at(-1)?.entry_date ?? defaultDate} storeLeft={storeLeft} lastGair={lastGair}
+                <KilnNewRow stage={stage} n={sorted.length + 1} workers={activeWorkers} qualities={qualityOpts} patheers={patheerOpts} defaultDate={sorted.at(-1)?.entry_date ?? defaultDate} storeLeft={storeLeft} gairs={gairs}
                   onAdd={async (p) => { const ok = await insertEntry(p); if (ok && (p.entry_date < start || p.entry_date > end)) { nav.go(p.entry_date); toast.success(`${t("saved")} — ${fmtDate(p.entry_date)}`); } return ok; }} />
               )}
               <tr className="total">
-                <td className="rn" /><td colSpan={stage === "rehra" ? 5 : 3}>{t("total")}</td>
+                <td className="rn" /><td colSpan={stage === "rehra" ? 5 : 4}>{t("total")}</td>
                 <td className="n num">{stage === "rehra" ? <>{fmt(loadedBricks)}{loaded9t ? <div className="text-[11px] font-normal">+ {fmt(loaded9t)} {t("raw9t")}</div> : null}</> : fmt(weekBricks)}</td><td colSpan={2} />
               </tr>
             </tbody>
@@ -295,7 +297,6 @@ export function KilnWeek({ stage }: { stage: Stage }) {
 
       <KilnWeeklyTable selectedWeek={start} onPick={(w) => nav.go(w)} />
 
-      <datalist id="gair-list">{(gairs.data ?? []).filter((g) => g.gair).map((g) => <option key={g.gair_key} value={g.gair!} />)}</datalist>
       {stage === "rehra" && <KachaStore start={start} end={end} readOnly={readOnly} patheers={patheers.data ?? []} defaultDate={defaultDate} />}
 
       <KharchaSheet rows={kharchaRows} readOnly={readOnly} onGive={giveKharcha} />
@@ -303,7 +304,7 @@ export function KilnWeek({ stage }: { stage: Stage }) {
   );
 }
 
-type NewKiln = { party_id: string; count: number; quality_id: string | null; source_party_id: string | null; entry_date: string; notes: string | null; raw_type?: RawType; from_store?: boolean; firing_ref?: string | null };
+type NewKiln = { party_id: string; count: number; quality_id: string | null; source_party_id: string | null; entry_date: string; notes: string | null; raw_type?: RawType; from_store?: boolean; gair_id?: string | null };
 
 /** Rehra "From": a patheer (fresh dry bricks) or the kacha store. */
 function FromSelect({ value, patheers, extra, pName, disabled, onChange }: {
@@ -321,26 +322,28 @@ function FromSelect({ value, patheers, extra, pName, disabled, onChange }: {
 }
 
 /** Blank row at the bottom of the entries sheet: any worker, any date. */
-function KilnNewRow({ stage, n, workers, qualities, patheers, defaultDate, storeLeft, lastGair, onAdd }: {
+function KilnNewRow({ stage, n, workers, qualities, patheers, defaultDate, storeLeft, gairs, onAdd }: {
   stage: "rehra" | "nakasi"; n: number; workers: Tables<"parties">[]; qualities: Tables<"qualities">[]; patheers: Tables<"parties">[];
-  defaultDate: string; storeLeft: (rt: RawType) => number; lastGair: string; onAdd: (p: NewKiln) => Promise<boolean>;
+  defaultDate: string; storeLeft: (rt: RawType) => number; gairs: Tables<"gairs">[]; onAdd: (p: NewKiln) => Promise<boolean>;
 }) {
   const { t } = useT();
   const [f, setF] = useState({ date: "", party: "", quality: "", source: "", count: "", note: "", rawType: "brick" as RawType, gair: "" });
-  const gair = f.gair || lastGair;
   const qty = parseWhole(f.count) ?? 0;
   const overStore = stage === "rehra" && f.source === "store" && qty > storeLeft(f.rawType);
   const date = f.date || defaultDate;
+  // Blank = the open gair the database picks (rehra → newest open, nakasi → oldest open).
+  const autoGair = openGairFor(gairs, stage, date);
   const quality = f.quality || (stage === "nakasi" ? qualities[0]?.id ?? "" : "");
   async function save() {
     const count = parseWhole(f.count);
     if (!f.party) return void toast.error(t("chooseWorker"));
     if (!count || count <= 0) return void toast.error(t("wholeNumbers"));
     const rehra = stage === "rehra"
-      ? { raw_type: f.rawType, from_store: f.source === "store", source_party_id: f.source && f.source !== "store" ? f.source : null, quality_id: null, firing_ref: gair.trim() || null }
+      ? { raw_type: f.rawType, from_store: f.source === "store", source_party_id: f.source && f.source !== "store" ? f.source : null, quality_id: null }
       : { source_party_id: null, quality_id: quality || null };
-    if (await onAdd({ party_id: f.party, count, entry_date: date, notes: f.note.trim() || null, ...rehra })) {
-      setF({ ...f, count: "", note: "", gair });
+    const gair_id = f.gair || null;
+    if (await onAdd({ party_id: f.party, count, entry_date: date, notes: f.note.trim() || null, gair_id, ...rehra })) {
+      setF({ ...f, count: "", note: "" });
     }
   }
   const enter = (e: React.KeyboardEvent) => { if (e.key === "Enter" && f.count) { e.preventDefault(); save(); } };
@@ -351,11 +354,11 @@ function KilnNewRow({ stage, n, workers, qualities, patheers, defaultDate, store
       <td className="c"><select className="cell" value={f.party} onChange={(e) => setF({ ...f, party: e.target.value })} aria-label={t(stage)}>
         <option value="">{t("chooseWorker")}</option>{workers.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
       </select></td>
+      <td className="c"><GairSelect value={f.gair} gairs={gairs} auto={autoGair ? `🔥 ${gairName(autoGair)} (${t("autoShort")})` : "—"} onChange={(v) => setF({ ...f, gair: v })} /></td>
       {stage === "rehra" ? (<>
         <td className="c"><select className="cell" value={f.rawType} onChange={(e) => setF({ ...f, rawType: e.target.value as RawType })} aria-label={t("rawType")}>
           {RAW_TYPES.map(({ v, k }) => <option key={v} value={v}>{t(k)}</option>)}
         </select></td>
-        <td className="c"><input className="cell" list="gair-list" placeholder={t("firingExample")} value={gair} onChange={(e) => setF({ ...f, gair: e.target.value })} aria-label={t("firingRef")} /></td>
         <td className="c"><FromSelect value={f.source} patheers={patheers} pName={() => "—"} onChange={(v) => setF({ ...f, source: v })} /></td>
       </>) : (
         <td className="c"><select className="cell" value={quality} onChange={(e) => setF({ ...f, quality: e.target.value })}>

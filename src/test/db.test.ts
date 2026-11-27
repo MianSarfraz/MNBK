@@ -279,21 +279,58 @@ describe("rehra and the kacha store", () => {
   });
 });
 
-describe("gair check", () => {
+describe("gairs: start, auto-mark, close, check", () => {
   const rehraId = async () => (await one<{ id: string }>(`select id from parties where kind='rehra' and name='Rafiq'`)).id;
-  const gair = (g: string) => one(`select loaded_bricks, loaded_9t, loaded_from_store, produced_bricks, produced_9t, diff_bricks, diff_9t from gair_check where gair_key=$1`, [g]);
-  it("compares kacha loaded into a gair with pakki out of it, bricks and 9t separately; store bricks count only when loaded", async () => {
+  const check = (n: number) => one(`select loaded_bricks, loaded_9t, loaded_from_store, produced_bricks, produced_9t, diff_bricks, diff_9t from gair_check where number=$1`, [n]);
+  it("entries made while a gair is open are marked with it; store bricks count only when loaded", async () => {
     const storeBefore = (await one<{ balance: number }>(`select balance from raw_store_stock where raw_type='brick'`)).balance;
+    const g7 = (await one<{ id: string }>(`insert into gairs (number, started_on) values (7, '2026-11-24') returning id`)).id;
     await q(`insert into raw_store (entry_date, raw_type, source, supplier, count) values ('2026-11-24', 'brick', 'outsource', 'Haji Bhatta', 50000)`);
-    await q(`insert into kiln_entries (stage, party_id, entry_date, count, raw_type, from_store, firing_ref) values
-      ('rehra', $1, '2026-11-24', 60000, 'brick', false, 'Gair 7'),
-      ('rehra', $1, '2026-11-24', 20000, 'brick', true, 'gair 7 '),
-      ('rehra', $1, '2026-11-25', 8000, '9t', false, 'Gair 7')`, [await rehraId()]);
-    await q(`insert into kiln_entries (stage, entry_date, quality_id, count, firing_ref) values
-      ('nakasi', '2026-12-01', $1, 50000, 'Gair 7'), ('nakasi', '2026-12-01', $2, 29000, 'Gair 7'), ('nakasi', '2026-12-01', $3, 8000, 'GAIR 7')`,
+    await q(`insert into kiln_entries (stage, party_id, entry_date, count, raw_type, from_store) values
+      ('rehra', $1, '2026-11-24', 60000, 'brick', false), ('rehra', $1, '2026-11-24', 20000, 'brick', true), ('rehra', $1, '2026-11-25', 8000, '9t', false)`, [await rehraId()]);
+    await q(`insert into kiln_entries (stage, entry_date, quality_id, count) values ('nakasi', '2026-12-01', $1, 50000), ('nakasi', '2026-12-01', $2, 29000), ('nakasi', '2026-12-01', $3, 8000)`,
       [await type("Awal"), await type("Doum"), await type("9t Awal")]);
-    expect(await gair("gair 7")).toEqual({ loaded_bricks: 80000, loaded_9t: 8000, loaded_from_store: 20000, produced_bricks: 79000, produced_9t: 8000, diff_bricks: 1000, diff_9t: 0 });
-    // The other 30,000 stacked bricks are still in the store, outside any gair.
+    const marked = await q<{ gair_id: string; firing_ref: string }>(`select gair_id, firing_ref from kiln_entries where entry_date >= '2026-11-24' and deleted_at is null`);
+    expect(marked.every((m) => m.gair_id === g7 && m.firing_ref === "Gair 7")).toBe(true);
+    expect(await check(7)).toEqual({ loaded_bricks: 80000, loaded_9t: 8000, loaded_from_store: 20000, produced_bricks: 79000, produced_9t: 8000, diff_bricks: 1000, diff_9t: 0 });
     expect((await one<{ balance: number }>(`select balance from raw_store_stock where raw_type='brick'`)).balance).toBe(storeBefore + 50000 - 20000);
   });
+  it("with two gairs open, rehra goes to the newest and nakasi to the oldest; closing stops auto-marking", async () => {
+    await q(`insert into gairs (number, started_on) values (8, '2026-12-02')`);
+    await q(`insert into kiln_entries (stage, party_id, entry_date, count, raw_type) values ('rehra', $1, '2026-12-03', 1000, 'brick')`, [await rehraId()]);
+    await q(`insert into kiln_entries (stage, entry_date, quality_id, count) values ('nakasi', '2026-12-03', $1, 500)`, [await type("Awal")]);
+    expect(await one(`select firing_ref from kiln_entries where stage='rehra' and entry_date='2026-12-03'`)).toEqual({ firing_ref: "Gair 8" });
+    expect(await one(`select firing_ref from kiln_entries where stage='nakasi' and entry_date='2026-12-03'`)).toEqual({ firing_ref: "Gair 7" });
+    await q(`update gairs set closed_on='2026-12-03' where number=7`);
+    await q(`insert into kiln_entries (stage, entry_date, quality_id, count) values ('nakasi', '2026-12-04', $1, 300)`, [await type("Awal")]);
+    expect(await one(`select firing_ref from kiln_entries where stage='nakasi' and entry_date='2026-12-04'`)).toEqual({ firing_ref: "Gair 8" });
+    await q(`update gairs set closed_on='2026-12-05' where number=8`);
+    await q(`insert into kiln_entries (stage, entry_date, quality_id, count) values ('nakasi', '2026-12-06', $1, 100)`, [await type("Awal")]);
+    expect(await one(`select gair_id, firing_ref from kiln_entries where entry_date='2026-12-06'`)).toEqual({ gair_id: null, firing_ref: null });
+  });
+  it("moving an entry to another gair, or renaming a gair, keeps the name in step", async () => {
+    const id = (await one<{ id: string }>(`select id from kiln_entries where entry_date='2026-12-06'`)).id;
+    const g8 = (await one<{ id: string }>(`select id from gairs where number=8`)).id;
+    await q(`update kiln_entries set gair_id=$1 where id=$2`, [g8, id]);
+    await q(`update gairs set label='Gair 8 (winter)' where id=$1`, [g8]);
+    expect(await one(`select firing_ref from kiln_entries where id=$1`, [id])).toEqual({ firing_ref: "Gair 8 (winter)" });
+    await expect(q(`insert into gairs (number, started_on) values (8, '2026-12-10')`)).rejects.toThrow(/gairs_number_unique/);
+  });
+});
+
+describe("upgrade: gair names typed before become gairs", () => {
+  it("creates a gair per typed name, links the entries, keeps only the latest open", async () => {
+    const old = await freshDb();
+    const dir = path.resolve(__dirname, "../../drizzle/migrations");
+    for (const f of fs.readdirSync(dir).filter((f) => f.endsWith(".sql") && f < "0012").sort()) await old.exec(fs.readFileSync(path.join(dir, f), "utf8"));
+    await old.exec(`insert into auth.users values ('${U}','a@x','{}'); set role authenticated; select set_config('test.uid','${U}',false); select public.claim_owner_role();`);
+    const awal = (await old.query<{ id: string }>(`select id from qualities where kind='nakasi' and name_en='Awal'`)).rows[0]!.id;
+    await old.query(`insert into kiln_entries (stage, entry_date, quality_id, count, firing_ref) values ('nakasi', '2026-10-01', $1, 100, 'Gair 3'), ('nakasi', '2026-10-20', $1, 200, 'gair 3'), ('nakasi', '2026-11-05', $1, 300, 'Gair 4')`, [awal]);
+    await old.exec(`reset role`);
+    await old.exec(SETUP);
+    const gairs = (await old.query(`select number, started_on::text s, closed_on::text c from gairs order by number`)).rows;
+    expect(gairs).toEqual([{ number: 3, s: "2026-10-01", c: "2026-10-20" }, { number: 4, s: "2026-11-05", c: null }]);
+    const unlinked = (await old.query<{ n: number }>(`select count(*)::int n from kiln_entries where gair_id is null`)).rows[0]!.n;
+    expect(unlinked).toBe(0);
+  }, 60_000);
 });
