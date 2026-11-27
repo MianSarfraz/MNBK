@@ -196,6 +196,22 @@ export async function addBrickType(name: string, category: BrickCategory, existi
   return error ? error.message : null;
 }
 
+/** Agents we buy coal, wood and boora from, with what we owe each. */
+export function useSupplierAccounts() {
+  return useQuery({
+    queryKey: ["supplier-accounts"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("supplier_accounts").select("*").order("name");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+export const MATERIALS = ["coal", "wood", "boora", "other"] as const;
+export type Material = (typeof MATERIALS)[number];
+export const UNITS = ["ton", "mann", "kg", "truck", "trolley", "bag"] as const;
+export const DEFAULT_UNIT: Record<Material, string> = { coal: "ton", wood: "mann", boora: "trolley", other: "kg" };
+
 /** All gairs, newest first. */
 export function useGairList() {
   return useQuery({

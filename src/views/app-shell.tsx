@@ -19,12 +19,12 @@ const GROUPS: { title: string; items: NavItem[] }[] = [
     { href: "/stock/opening", k: "openingStock" }, { href: "/sales-reports", k: "salesReports" }, { href: "/sales/bill", k: "invoiceGenerator" }, { href: "/sales/invoices", k: "invoices" },
   ] },
   { title: "Kiln work", items: [...(PATHEER ? [{ href: "/weekly", k: "weekly" as Key }] : []), { href: "/rehra", k: "rehra" }, { href: "/gair", k: "gairCheck" }, { href: "/nakasi", k: "nakasi" }, ...(PATHEER ? [{ href: "/patheer", k: "patheer" as Key }] : []), { href: "/people/employee", k: "employees" }] },
-  { title: "Money", items: [{ href: "/expenses", k: "expenseKhatta" }, { href: "/owners", k: "ownersTitle" }, { href: "/people/vendor", k: "vendors" }, { href: "/reports", k: "reports" }] },
+  { title: "Money", items: [{ href: "/fuel", k: "fuelShort" }, { href: "/expenses", k: "expenseKhatta" }, { href: "/owners", k: "ownersTitle" }, { href: "/people/vendor", k: "vendors" }, { href: "/reports", k: "reports" }] },
   { title: "Settings", items: [{ href: "/qualities", k: "qualities" }, { href: "/seasons", k: "seasons" }, { href: "/history", k: "history" }] },
 ];
 const DESKTOP: NavItem[] = [
   { href: "/dashboard", k: "dashboard" }, { href: "/sales", k: "sales" }, { href: "/payments", k: "paymentsShort" }, { href: "/customers", k: "customers" },
-  { href: "/stock", k: "stock" }, { href: "/production", k: "production" }, { href: "/sales-reports", k: "reports" }, { href: PATHEER ? "/weekly" : "/rehra", k: "kilnWork" },
+  { href: "/stock", k: "stock" }, { href: "/production", k: "production" }, { href: "/fuel", k: "fuelShort" }, { href: "/sales-reports", k: "reports" }, { href: PATHEER ? "/weekly" : "/rehra", k: "kilnWork" },
 ];
 const TABS = [
   { href: "/dashboard", k: "home" as Key, icon: Home },

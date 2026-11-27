@@ -351,3 +351,24 @@ describe("starting a gair adds entries already made in its dates", () => {
     expect(await one(`select loaded_bricks from gair_check where number=20`)).toEqual({ loaded_bricks: 2111 });
   });
 });
+
+describe("fuel khatta: coal, wood, boora from agents", () => {
+  it("purchases add to what we owe the agent, payments reduce it; each material is totalled", async () => {
+    const agent = (await one<{ id: string }>(`insert into parties (kind, name, opening_balance, created_by) values ('vendor', 'Haji Coal Agent', 50000, $1) returning id`, [U])).id;
+    await q(`insert into purchases (entry_date, supplier_id, material, truck_no, quantity, unit, rate, amount) values
+      ('2026-11-20', $1, 'coal', 'LES-1234', 32.5, 'ton', 28000, 910000),
+      ('2026-11-22', $1, 'coal', 'LES-9876', 30, 'ton', 28000, 840000),
+      ('2026-11-23', $1, 'wood', null, 200, 'mann', 900, 180000),
+      ('2026-11-24', $1, 'boora', null, 3, 'trolley', 15000, 45000)`, [agent]);
+    await q(`insert into transactions (entry_date, party_id, kind, direction, amount, method, handler_user_id, category, created_by)
+             values ('2026-11-25', $1, 'expense', 'out', 1000000, 'bank', $2, 'fuel_payment', $2)`, [agent, U]);
+    expect(await one(`select opening, purchases, coal, wood, boora, coal_trucks, payments, balance from supplier_accounts where party_id=$1`, [agent])).toEqual(
+      { opening: 50000, purchases: 1975000, coal: 1750000, wood: 180000, boora: 45000, coal_trucks: 2, payments: 1000000, balance: 1025000 });
+    // Voiding a purchase takes it off the tab.
+    await q(`update purchases set deleted_at=now() where material='boora' and supplier_id=$1`, [agent]);
+    expect((await one<{ balance: number }>(`select balance from supplier_accounts where party_id=$1`, [agent])).balance).toBe(980000);
+  });
+  it("only agents (vendors) can sell to us", async () => {
+    await expect(q(`insert into purchases (entry_date, supplier_id, amount) values ('2026-11-20', $1, 100)`, [await customer("Rana Shani")])).rejects.toThrow(/agent/);
+  });
+});

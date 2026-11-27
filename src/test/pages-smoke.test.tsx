@@ -55,6 +55,13 @@ const DB: Record<string, Record<string, unknown>[]> = {
   sale_lines: [{ item_id: "si1", sale_id: SALE, invoice_no: 1, entry_date: "2026-11-14", customer_id: C1, vehicle_no: "ABC-1", driver_name: "D", note: null, quality_id: QA, quantity: 10000, rate_per_1000: 14500, amount: 145000, season_id: S1 }],
   raw_stock: [{ made: 48500, loaded: 40000, adjusted: 0, balance: 8500, external: 0, stored: 0, drying: 8500 }],
   raw_store: [],
+  supplier_accounts: [
+    { party_id: "agent-1", ref_no: 9, name: "Haji Coal", phone: "0301", notes: null, is_active: true, opening: 50000, purchases: 910000, coal: 910000, wood: 0, boora: 0, other: 0,
+      purchase_count: 1, coal_trucks: 1, payments: 300000, balance: 660000, last_purchase: "2026-11-20", last_payment: "2026-11-21" },
+  ],
+  purchases: [
+    { ...base, id: "pu1", ref_no: 1, entry_date: "2026-11-20", season_id: S1, supplier_id: "agent-1", material: "coal", truck_no: "LES-1234", quantity: 32.5, unit: "ton", rate: 28000, amount: 910000, reference: null, notes: null },
+  ],
   gairs: [
     { ...base, id: "g6", number: 6, label: null, started_on: "2026-10-01", closed_on: "2026-11-12", notes: null },
     { ...base, id: "g7", number: 7, label: null, started_on: "2026-11-13", closed_on: null, notes: null },
@@ -133,7 +140,7 @@ async function viewFor(path: string) {
   if (seg[0] === "sales" && seg[1]) { nav.params = { id: seg[1] }; return v(import("@/views/invoice")); }
   if (seg[0] === "patheer") { const { PartyList } = await import("@/components/PartyList"); return () => <PartyList kind="patheer" />; }
   if (seg[0] === "rehra" || seg[0] === "nakasi") { const { KilnWeek } = await import("@/components/KilnWeek"); const st = seg[0]; return () => <KilnWeek stage={st} />; }
-  const map: Record<string, string> = { dashboard: "dashboard", weekly: "weekly", sales: "sales-register", payments: "payments", customers: "customers", production: "production", "sales-reports": "sales-reports", stock: "stock", expenses: "expenses", owners: "owners", reports: "reports", history: "history", seasons: "seasons", qualities: "qualities", gair: "gair" };
+  const map: Record<string, string> = { dashboard: "dashboard", weekly: "weekly", sales: "sales-register", payments: "payments", customers: "customers", production: "production", "sales-reports": "sales-reports", stock: "stock", expenses: "expenses", owners: "owners", reports: "reports", history: "history", seasons: "seasons", qualities: "qualities", gair: "gair", fuel: "fuel" };
   return v(import(`@/views/${map[seg[0]!]}.tsx`));
 }
 
@@ -440,6 +447,37 @@ describe("saved sales stay editable", () => {
     fireEvent.blur(paid);
     await waitFor(() => expect(WRITES.some((w) => w.table === "transactions")).toBe(true), { timeout: 4000 });
     expect(WRITES.find((w) => w.table === "transactions")!.payload).toEqual({ amount: 120000 });
+    spy.mockRestore();
+  });
+});
+
+describe("fuel khatta", () => {
+  it("adds a coal truck (32.5 ton × 28,000 = 910,000), a payment to the agent, and shows the agent's tab", async () => {
+    WRITES.length = 0;
+    const { spy } = await mount("/fuel");
+    await waitFor(() => expect((screen.getAllByLabelText("Agent").at(-1) as HTMLSelectElement).innerHTML).toContain("Haji Coal"), { timeout: 4000 });
+    fireEvent.change(screen.getAllByLabelText("Agent").at(-1)!, { target: { value: "agent-1" } });
+    fireEvent.change(screen.getAllByLabelText("Quantity").at(-1)!, { target: { value: "32.5" } });
+    fireEvent.change(screen.getAllByLabelText("Rate (per unit)").at(-1)!, { target: { value: "28000" } });
+    const amt = screen.getAllByLabelText("Amount (Rs.)").at(-1)!;
+    expect(amt).toHaveAttribute("placeholder", "910,000");
+    fireEvent.keyDown(amt, { key: "Enter" });
+    await waitFor(() => expect(WRITES.some((w) => w.table === "purchases")).toBe(true), { timeout: 4000 });
+    expect(WRITES.find((w) => w.table === "purchases")!.payload).toMatchObject({ supplier_id: "agent-1", material: "coal", quantity: 32.5, unit: "ton", rate: 28000, amount: 910000 });
+
+    fireEvent.click(screen.getByRole("button", { name: "Payments to agents" }));
+    WRITES.length = 0;
+    fireEvent.change(screen.getAllByLabelText("Agent").at(-1)!, { target: { value: "agent-1" } });
+    const pay = screen.getAllByLabelText("Amount (Rs.)").at(-1)!;
+    fireEvent.change(pay, { target: { value: "200000" } });
+    fireEvent.keyDown(pay, { key: "Enter" });
+    await waitFor(() => expect(WRITES.some((w) => w.table === "transactions")).toBe(true), { timeout: 4000 });
+    expect(WRITES.find((w) => w.table === "transactions")!.payload).toMatchObject({ party_id: "agent-1", kind: "expense", direction: "out", amount: 200000, category: "fuel_payment" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Agents & tabs" }));
+    expect(screen.getAllByText("660,000").length).toBeGreaterThan(0); // 50,000 + 910,000 − 300,000
+    fireEvent.click(screen.getByRole("button", { name: "tab" }));
+    expect(await screen.findByText(/Haji Coal — tab/)).toBeInTheDocument();
     spy.mockRestore();
   });
 });

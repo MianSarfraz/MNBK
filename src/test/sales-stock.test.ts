@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { amountFor, billTotals, canSell, gairCheck, kilnByWeek, kachaStore, lineAmount, customerAccount, invoiceTotal, periodKey, stockRow, summarize } from "@/lib/kiln-math";
+import { amountFor, billTotals, parseQtyMilli, purchaseAmount, supplierAccount, canSell, gairCheck, kilnByWeek, kachaStore, lineAmount, customerAccount, invoiceTotal, periodKey, stockRow, summarize } from "@/lib/kiln-math";
 
 describe("sale amounts (Quantity / 1000 × Rate)", () => {
   it("5,000 Awal at Rs 18,000 per 1,000 = Rs 90,000", () => expect(amountFor(5000, 18000)).toBe(90000));
@@ -109,5 +109,15 @@ describe("kiln in / out by week", () => {
 describe("combined bill", () => {
   it("adds several sales and what was received against them", () => {
     expect(billTotals([{ total: 90000, received: 50000 }, { total: 30000, received: 0 }, { total: 13000, received: 13000 }])).toEqual({ total: 133000, received: 63000, due: 70000 });
+  });
+});
+
+describe("fuel khatta", () => {
+  it("32.5 ton coal at Rs 28,000 a ton = Rs 910,000", () => expect(purchaseAmount(parseQtyMilli("32.5")!, 28000)).toBe(910000));
+  it("odd weights round half-up to whole rupees", () => expect(purchaseAmount(parseQtyMilli("12.345")!, 999)).toBe(12333));
+  it("rejects bad quantities", () => { expect(parseQtyMilli("1.2345")).toBeNull(); expect(parseQtyMilli("abc")).toBeNull(); });
+  it("owed = opening + purchases − payments; overpaying shows as advance", () => {
+    expect(supplierAccount({ opening: 50000, purchases: 1975000, payments: 1000000 })).toEqual({ balance: 1025000, weOwe: 1025000, advance: 0 });
+    expect(supplierAccount({ opening: 0, purchases: 100, payments: 300 })).toEqual({ balance: -200, weOwe: 0, advance: 200 });
   });
 });

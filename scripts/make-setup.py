@@ -3,7 +3,7 @@
 import glob, re, sys
 
 root = sys.argv[1] if len(sys.argv) > 1 else "."
-VIEWS = ["party_ledger", "party_earnings", "sale_totals", "finished_stock", "raw_stock", "raw_store_stock", "sale_lines", "customer_accounts", "gair_check"]
+VIEWS = ["party_ledger", "party_earnings", "sale_totals", "finished_stock", "raw_stock", "raw_store_stock", "sale_lines", "customer_accounts", "gair_check", "supplier_accounts"]
 
 parts = []
 for f in sorted(glob.glob(f"{root}/drizzle/migrations/0*.sql")):

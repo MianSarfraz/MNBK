@@ -703,6 +703,69 @@ export type Database = {
         }
         Relationships: []
       }
+      purchases: {
+        Row: {
+          id: string
+          ref_no: number
+          entry_date: string
+          season_id: string | null
+          supplier_id: string
+          material: string
+          truck_no: string | null
+          quantity: number | null
+          unit: string | null
+          rate: number | null
+          amount: number
+          reference: string | null
+          notes: string | null
+          created_by: string
+          updated_by: string | null
+          created_at: string
+          updated_at: string
+          deleted_at: string | null
+        }
+        Insert: {
+          id?: string
+          ref_no?: number
+          entry_date: string
+          season_id?: string | null
+          supplier_id: string
+          material?: string
+          truck_no?: string | null
+          quantity?: number | null
+          unit?: string | null
+          rate?: number | null
+          amount: number
+          reference?: string | null
+          notes?: string | null
+          created_by?: string
+          updated_by?: string | null
+          created_at?: string
+          updated_at?: string
+          deleted_at?: string | null
+        }
+        Update: {
+          id?: string
+          ref_no?: number
+          entry_date?: string
+          season_id?: string | null
+          supplier_id?: string
+          material?: string
+          truck_no?: string | null
+          quantity?: number | null
+          unit?: string | null
+          rate?: number | null
+          amount?: number
+          reference?: string | null
+          notes?: string | null
+          created_by?: string
+          updated_by?: string | null
+          created_at?: string
+          updated_at?: string
+          deleted_at?: string | null
+        }
+        Relationships: []
+      }
       raw_store: {
         Row: {
           id: string
@@ -1028,6 +1091,29 @@ export type Database = {
           produced_9t: number | null
           produced_bricks: number | null
           started_on: string | null
+        }
+        Relationships: []
+      }
+      supplier_accounts: {
+        Row: {
+          boora: number | null
+          coal: number | null
+          coal_trucks: number | null
+          is_active: boolean | null
+          last_payment: string | null
+          last_purchase: string | null
+          name: string | null
+          notes: string | null
+          opening: number | null
+          other: number | null
+          party_id: string | null
+          payments: number | null
+          phone: string | null
+          purchase_count: number | null
+          purchases: number | null
+          ref_no: number | null
+          wood: number | null
+          balance: number | null
         }
         Relationships: []
       }

@@ -312,6 +312,25 @@ export function billTotals(sales: { total: number; received: number }[]) {
   return { total, received, due: total - received };
 }
 
+// ---------- Fuel khatta (coal / wood / boora from agents) ----------
+/** Quantity typed with up to 3 decimals ("32.5" ton) → thousandths, as a whole number. null if not a valid quantity. */
+export function parseQtyMilli(v: string): number | null {
+  const ascii = v.replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06f0)).replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660));
+  const m = ascii.replace(/,/g, "").trim().match(/^(\d+)(?:\.(\d{1,3}))?$/);
+  if (!m) return null;
+  return Number(m[1]) * 1000 + Number((m[2] ?? "").padEnd(3, "0"));
+}
+/** Purchase amount = quantity × rate, rounded half-up to whole rupees (quantity in thousandths, so no float error). */
+export function purchaseAmount(qtyMilli: number, rate: number): number {
+  if (!Number.isInteger(qtyMilli) || !Number.isInteger(rate) || qtyMilli < 0 || rate < 0) throw new Error("quantity and rate must be whole, non-negative");
+  return Math.floor((qtyMilli * rate + 500) / 1000);
+}
+/** What we owe an agent: opening + purchases − payments (positive = we owe them). Mirrors view supplier_accounts. */
+export function supplierAccount(p: { opening: number; purchases: number; payments: number }) {
+  const balance = p.opening + p.purchases - p.payments;
+  return { balance, weOwe: Math.max(0, balance), advance: Math.max(0, -balance) };
+}
+
 // ---------- Stock ----------
 /** Finished stock per stock-quality: nakasi output − sales (mapped to stock quality) + adjustments. */
 export function finishedStock(
