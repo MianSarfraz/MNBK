@@ -23,7 +23,7 @@ const DB: Record<string, Record<string, unknown>[]> = {
     { ...base, id: "q-roray", name_en: "Trali Roray", name_ur: "Trali Roray", kind: "sale", category: "other", is_active: true, sort_order: 201, stock_quality_id: null, unit: "load" },
   ],
   expense_categories: [{ ...base, id: "cat-1", name_en: "Diesel", name_ur: "Diesel", is_active: true, sort_order: 1 }],
-  parties: [party(P1, "patheer", "Akram"), party(C1, "customer", "Bashir", { opening_balance: -1000 }), party(E1, "employee", "Munshi", { monthly_salary: 30000 }), party(N1, "nakasi", "Nadeem"), party(R1, "rehra", "Rafiq")],
+  parties: [party(P1, "patheer", "Akram"), party(C1, "customer", "Bashir", { opening_balance: -1000 }), party(E1, "employee", "Munshi", { monthly_salary: 30000 }), party(N1, "nakasi", "Nadeem"), party(R1, "rehra", "Rafiq"), party("agent-1", "vendor", "Haji Coal")],
   party_rates: [
     { ...base, id: "r1", party_id: P1, kind: "earning", rate_per_1000: 1600, effective_from: "2026-11-01" },
     { ...base, id: "r2", party_id: P1, kind: "kharcha", rate_per_1000: 1300, effective_from: "2026-11-01" },
@@ -478,6 +478,18 @@ describe("fuel khatta", () => {
     expect(screen.getAllByText("660,000").length).toBeGreaterThan(0); // 50,000 + 910,000 − 300,000
     fireEvent.click(screen.getByRole("button", { name: "tab" }));
     expect(await screen.findByText(/Haji Coal — tab/)).toBeInTheDocument();
+    spy.mockRestore();
+  });
+});
+
+describe("vendors list", () => {
+  it("each vendor has a delete button that deletes them and their khatta", async () => {
+    WRITES.length = 0;
+    const { spy } = await mount("/people/vendor");
+    fireEvent.click(await screen.findByRole("button", { name: "Delete Haji Coal" }, { timeout: 4000 }));
+    fireEvent.click(await screen.findByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(WRITES.some((w) => w.table === "delete_party")).toBe(true), { timeout: 4000 });
+    expect(WRITES.find((w) => w.table === "delete_party")!.payload).toEqual({ _id: "agent-1" });
     spy.mockRestore();
   });
 });

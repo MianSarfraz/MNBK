@@ -7,11 +7,12 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { fmt, useT } from "@/lib/i18n";
 import { parseWhole } from "@/lib/kiln-math";
-import { errMsg, myId, seasonForDate, today, useLedgers, useParties, useSeasons, WORKER_KINDS, type PartyKind } from "@/lib/data";
+import { deleteVia, errMsg, myId, seasonForDate, today, useLedgers, useParties, useSeasons, WORKER_KINDS, type PartyKind } from "@/lib/data";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { BalanceBadge } from "@/components/BalanceBadge";
+import { ConfirmButton } from "@/components/ConfirmButton";
 import { DateInput, Empty, Field, NumInput, PageHeader, Select, Stat } from "@/components/kit";
 import { kindKey, OpeningInput } from "@/components/PartyLedger";
 
@@ -108,7 +109,8 @@ export function PartyList({ kind }: { kind: PartyKind }) {
           </div>
           {!shown.length && <Empty />}
           {shown.map((p) => (
-            <Link key={p.id} href={kind === "customer" ? `/customers/${p.id}` : `/party/${p.id}`} className={`flex items-center justify-between rounded-xl border bg-card p-4 hover:border-primary ${p.is_active ? "" : "opacity-60"}`}>
+            <div key={p.id} className="flex items-stretch gap-2">
+            <Link href={kind === "customer" ? `/customers/${p.id}` : `/party/${p.id}`} className={`flex flex-1 items-center justify-between rounded-xl border bg-card p-4 hover:border-primary ${p.is_active ? "" : "opacity-60"}`}>
               <div>
                 <div className="text-lg font-bold">{p.name}</div>
                 <div className="text-sm text-muted-foreground">
@@ -122,6 +124,14 @@ export function PartyList({ kind }: { kind: PartyKind }) {
                 </div>
               )}
             </Link>
+            {!p.is_cash && (
+              <ConfirmButton variant="outline" className="h-auto px-3" title={`${t("del")} ${p.name}`} confirmLabel={t("del")} description={`${p.name}: ${t("deletePartyHelp")}`}
+                onConfirm={async () => {
+                  try { await deleteVia("delete_party", p.id); toast.success(`${t("deleted")} — ${p.name}`); } catch (e) { toast.error(errMsg(e)); }
+                  qc.invalidateQueries();
+                }}>×</ConfirmButton>
+            )}
+            </div>
           ))}
         </div>
       </div>
