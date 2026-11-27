@@ -275,6 +275,31 @@ export function gairCheck(loaded: number, produced: number) {
   return { difference, status, lossPermille };
 }
 
+/** Kiln in / out per week (Thu–Wed): kacha bricks & 9t tiles rehra loaded in (and how many from the kacha store),
+ *  and pakki bricks & 9t tiles nakasi took out. Newest week first. */
+export type KilnWeekRow = { week: string; inBricks: number; in9t: number; inStore: number; outBricks: number; out9t: number };
+export function kilnByWeek(
+  entries: { stage: string; entry_date: string; count: number; raw_type?: string | null; from_store?: boolean | null; quality_id?: string | null }[],
+  isNineT: (qualityId: string | null | undefined) => boolean,
+): KilnWeekRow[] {
+  const m = new Map<string, KilnWeekRow>();
+  for (const e of entries) {
+    const week = weekStart(e.entry_date);
+    let r = m.get(week);
+    if (!r) m.set(week, (r = { week, inBricks: 0, in9t: 0, inStore: 0, outBricks: 0, out9t: 0 }));
+    const n = Number(e.count);
+    if (e.stage === "rehra") {
+      if (e.raw_type === "9t") r.in9t += n;
+      else r.inBricks += n;
+      if (e.from_store) r.inStore += n;
+    } else if (e.stage === "nakasi") {
+      if (isNineT(e.quality_id)) r.out9t += n;
+      else r.outBricks += n;
+    }
+  }
+  return [...m.values()].sort((a, b) => b.week.localeCompare(a.week));
+}
+
 // ---------- Stock ----------
 /** Finished stock per stock-quality: nakasi output − sales (mapped to stock quality) + adjustments. */
 export function finishedStock(

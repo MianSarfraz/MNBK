@@ -11,6 +11,7 @@ import { amountAtRates, parseWhole, type Rate, type RawType } from "@/lib/kiln-m
 import { errMsg, myId, today, useGairs, useKachaStock, useParties, useQualities, useRates } from "@/lib/data";
 import { KachaStore, RAW_TYPES } from "@/components/KachaStore";
 import { PATHEER } from "@/lib/features";
+import { KilnWeeklyTable } from "@/components/KilnWeeklyTable";
 import { Button } from "@/components/ui/button";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { KharchaSheet } from "@/components/KharchaSheet";
@@ -64,6 +65,7 @@ export function KilnWeek({ stage }: { stage: Stage }) {
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ["kiln", stage] });
     qc.invalidateQueries({ queryKey: ["gair-check"] });
+    qc.invalidateQueries({ queryKey: ["kiln-weekly"] });
     qc.invalidateQueries({ queryKey: ["ledgers"] });
   };
 
@@ -154,6 +156,40 @@ export function KilnWeek({ stage }: { stage: Stage }) {
         </>) : <Stat label={t("bakedThisWeek")} value={weekBricks} />}
         <Stat label={t("earnings")} value={weekEarn} money />
       </div>
+
+      {stage === "rehra" && totals.some((r) => r.es.length) && (
+        <div className="space-y-1">
+          <div className="text-sm font-semibold">{t("thisWeekByRehra")}</div>
+          <Sheet minWidth={620} className="max-w-3xl">
+            <thead>
+              <LetterRow cols={6} />
+              <tr><th className="rn">#</th><th>{t("rehra")}</th><th className="n w-28">{t("rawBrick")}</th><th className="n w-28">{t("raw9t")}</th>
+                <th className="n w-28">{t("inStoreShort")}</th><th className="n w-28">{t("total")}</th><th className="n w-28">Rs</th></tr>
+            </thead>
+            <tbody>
+              {totals.filter((r) => r.es.length).map(({ w, es, bricks, earn, hasRate }, i) => {
+                const n = (f: (e: Entry) => boolean) => es.filter(f).reduce((s, e) => s + Number(e.count), 0);
+                return (
+                  <tr key={w.id}>
+                    <td className="rn">{i + 1}</td>
+                    <td className="whitespace-nowrap font-medium"><Link href={`/party/${w.id}`} className="hover:underline">{w.name}</Link>{!hasRate && <span className="ms-1 text-[11px] text-destructive">{t("missingRate")}</span>}</td>
+                    <td className="n num">{fmt(n((e) => e.raw_type !== "9t"))}</td>
+                    <td className="n num">{fmt(n((e) => e.raw_type === "9t"))}</td>
+                    <td className="n num ro">{fmt(n((e) => e.from_store))}</td>
+                    <td className="n num font-semibold">{fmt(bricks)}</td>
+                    <td className="n num font-semibold text-primary">{fmt(earn)}</td>
+                  </tr>
+                );
+              })}
+              <tr className="total">
+                <td className="rn" /><td>{t("total")}</td>
+                <td className="n num">{fmt(loadedBricks)}</td><td className="n num">{fmt(loaded9t)}</td><td className="n num">{fmt(loadedStore)}</td>
+                <td className="n num">{fmt(weekBricks)}</td><td className="n num">{fmt(weekEarn)}</td>
+              </tr>
+            </tbody>
+          </Sheet>
+        </div>
+      )}
 
       {!rows.length && <Empty>{t("addWorkersFirst")} — <Link href={`/people/${stage}`} className="text-primary underline">{t(stage)}</Link></Empty>}
 
@@ -256,6 +292,8 @@ export function KilnWeek({ stage }: { stage: Stage }) {
           </Sheet>
         </div>
       )}
+
+      <KilnWeeklyTable selectedWeek={start} onPick={(w) => nav.go(w)} />
 
       <datalist id="gair-list">{(gairs.data ?? []).filter((g) => g.gair).map((g) => <option key={g.gair_key} value={g.gair!} />)}</datalist>
       {stage === "rehra" && <KachaStore start={start} end={end} readOnly={readOnly} patheers={patheers.data ?? []} defaultDate={defaultDate} />}

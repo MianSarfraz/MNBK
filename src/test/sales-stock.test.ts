@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { amountFor, canSell, gairCheck, kachaStore, lineAmount, customerAccount, invoiceTotal, periodKey, stockRow, summarize } from "@/lib/kiln-math";
+import { amountFor, canSell, gairCheck, kilnByWeek, kachaStore, lineAmount, customerAccount, invoiceTotal, periodKey, stockRow, summarize } from "@/lib/kiln-math";
 
 describe("sale amounts (Quantity / 1000 × Rate)", () => {
   it("5,000 Awal at Rs 18,000 per 1,000 = Rs 90,000", () => expect(amountFor(5000, 18000)).toBe(90000));
@@ -86,4 +86,22 @@ describe("gair check", () => {
   it("80,000 kacha in, 79,000 pakki out → 1,000 short (1.3%)", () => expect(gairCheck(80000, 79000)).toEqual({ difference: 1000, status: "short", lossPermille: 13 }));
   it("equal when everything loaded came out", () => expect(gairCheck(8000, 8000).status).toBe("equal"));
   it("more out than in is flagged (a load missing its gair)", () => expect(gairCheck(1000, 1500)).toMatchObject({ difference: -500, status: "over" }));
+});
+
+describe("kiln in / out by week", () => {
+  it("adds rehra loads (bricks / 9t, from store) and nakasi output (bricks / 9t) per Thu–Wed week", () => {
+    const nineT = (q: string | null | undefined) => q === "q9";
+    const rows = kilnByWeek([
+      { stage: "rehra", entry_date: "2026-11-19", count: 40000, raw_type: "brick" },               // Thu
+      { stage: "rehra", entry_date: "2026-11-25", count: 10000, raw_type: "brick", from_store: true }, // Wed, same week
+      { stage: "rehra", entry_date: "2026-11-20", count: 5000, raw_type: "9t" },
+      { stage: "nakasi", entry_date: "2026-11-24", count: 30000, quality_id: "qa" },
+      { stage: "nakasi", entry_date: "2026-11-24", count: 4000, quality_id: "q9" },
+      { stage: "rehra", entry_date: "2026-11-26", count: 1000, raw_type: "brick" },                // next Thu
+    ], nineT);
+    expect(rows).toEqual([
+      { week: "2026-11-26", inBricks: 1000, in9t: 0, inStore: 0, outBricks: 0, out9t: 0 },
+      { week: "2026-11-19", inBricks: 50000, in9t: 5000, inStore: 10000, outBricks: 30000, out9t: 4000 },
+    ]);
+  });
 });

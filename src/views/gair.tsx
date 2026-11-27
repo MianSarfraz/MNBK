@@ -8,6 +8,7 @@ import { downloadExcel } from "@/lib/export";
 import { Button } from "@/components/ui/button";
 import { Empty, PageHeader, PrintHeader } from "@/components/kit";
 import { KachaStoreCards } from "@/components/KachaStore";
+import { KilnWeeklyTable } from "@/components/KilnWeeklyTable";
 import { LetterRow, Sheet } from "@/components/sheet";
 
 /** Gair check: kacha bricks loaded into each gair (fresh + from the kacha store) vs pakki bricks out, per kind. */
@@ -81,6 +82,8 @@ export default function GairPage() {
           <div className="text-xs text-muted-foreground">{t("noGairLoadsHelp")}</div>
         </div>
       )}
+
+      <KilnWeeklyTable />
 
       <div className="space-y-1">
         <div className="text-sm font-semibold">{t("unusedInStore")}</div>

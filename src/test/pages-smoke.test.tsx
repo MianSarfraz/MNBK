@@ -341,6 +341,11 @@ describe("rehra khatta", () => {
     expect(screen.queryByText(/Made − loaded/)).toBeNull();
     const fromOpts = [...(screen.getAllByLabelText("From").at(-1) as HTMLSelectElement).options].map((o) => o.text);
     expect(fromOpts).toEqual(["Fresh kacha", "📦 Kacha store"]);
+    // Week-by-week table and this week's per-rehra totals (fixture: Rafiq loaded 40,000 bricks; nakasi baked 30,000).
+    expect(screen.getByText("Kiln in / out — week by week")).toBeInTheDocument();
+    expect(screen.getByText("This week by rehra")).toBeInTheDocument();
+    expect((await screen.findAllByText("40,000")).length).toBeGreaterThan(1);
+    expect((await screen.findAllByText("30,000")).length).toBeGreaterThan(0);
     // New load from the store
     fireEvent.change(screen.getAllByLabelText("Rehra").at(-1)!, { target: { value: R1 } });
     fireEvent.change(screen.getAllByLabelText("What").at(0)!.closest("table")!.querySelectorAll("tr.new select[aria-label='What']")[0]!, { target: { value: "9t" } });
