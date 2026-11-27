@@ -9,7 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import { fmt, fmtDate, fmtMonth, useT } from "@/lib/i18n";
 import { addDays, monthEnd, monthStart, parseWhole } from "@/lib/kiln-math";
-import { errMsg, fetchAll, myId, openReceipt, today, uploadReceipt, useExpenseCategories, useOwners, useParties } from "@/lib/data";
+import { deleteVia, errMsg, fetchAll, myId, openReceipt, today, uploadReceipt, useExpenseCategories, useOwners, useParties } from "@/lib/data";
 import { downloadExcel } from "@/lib/export";
 import { txnKindLabel } from "@/lib/labels";
 import { Button } from "@/components/ui/button";
@@ -102,7 +102,7 @@ export default function ExpensesPage() {
         <Sheet key={tab} direction={tab} rows={tab === "out" ? outRows : inRows} cats={cats.data ?? []} me={me}
           describe={describe} categoryOf={categoryOf} ownerName={ownerName} partyName={partyName} onChange={refresh} loading={txQ.isLoading} />
       ) : (
-        <Summary outRows={outRows} inRows={inRows} all={all} categoryOf={categoryOf} ownerName={ownerName} onChange={refresh} />
+        <Summary outRows={outRows} inRows={inRows} all={all} cats={cats.data ?? []} categoryOf={categoryOf} ownerName={ownerName} onChange={refresh} />
       )}
     </div>
   );
@@ -285,8 +285,8 @@ function NewRow({ nextNo, ...props }: NewRowProps & { nextNo: number }) {
 
 // ---------------------------------------------------------------- Summary
 
-function Summary({ outRows, inRows, all, categoryOf, ownerName, onChange }: {
-  outRows: Txn[]; inRows: Txn[]; all: Txn[]; categoryOf: (x: Txn) => string; ownerName: (id: string | null | undefined) => string; onChange: () => void;
+function Summary({ outRows, inRows, all, cats, categoryOf, ownerName, onChange }: {
+  outRows: Txn[]; inRows: Txn[]; all: Txn[]; cats: Cat[]; categoryOf: (x: Txn) => string; ownerName: (id: string | null | undefined) => string; onChange: () => void;
 }) {
   const { t } = useT();
   const totalOut = outRows.reduce((s, x) => s + Number(x.amount), 0);
@@ -352,12 +352,55 @@ function Summary({ outRows, inRows, all, categoryOf, ownerName, onChange }: {
         <TransferForm onSaved={onChange} />
         {transfers.length > 0 && (
           <div className="mt-2 space-y-1 text-xs text-muted-foreground">
-            {transfers.map((x) => <div key={x.id} className="num">{fmtDate(x.entry_date)} · {ownerName(x.handler_user_id)} → {ownerName(x.to_user_id)} · Rs {fmt(Number(x.amount))}</div>)}
+            {transfers.map((x) => (
+              <div key={x.id} className="num flex items-center justify-between gap-2">
+                <span>{fmtDate(x.entry_date)} · {ownerName(x.handler_user_id)} → {ownerName(x.to_user_id)} · Rs {fmt(Number(x.amount))}</span>
+                <ConfirmButton size="sm" variant="outline" className="no-print h-6 px-2" title={t("del")} confirmLabel={t("del")}
+                  onConfirm={async () => { const { error } = await supabase.from("transactions").update({ deleted_at: new Date().toISOString() }).eq("id", x.id); if (error) toast.error(error.message); onChange(); }}>×</ConfirmButton>
+              </div>
+            ))}
           </div>
         )}
       </Section>
       <ReceiptAttach rows={outRows.filter(isFree)} onSaved={onChange} />
+      <Categories cats={cats} onChange={onChange} />
     </div>
+  );
+}
+
+/** Rename or delete expense categories (new ones are made by typing a name in the sheet). */
+function Categories({ cats, onChange }: { cats: Cat[]; onChange: () => void }) {
+  const { t } = useT();
+  async function rename(id: string, name: string) {
+    const n = name.trim().replace(/\s+/g, " ");
+    if (!n) return;
+    if (cats.some((c) => c.id !== id && c.name_en.trim().toLowerCase() === n.toLowerCase())) return void toast.error(`"${n}" already exists`);
+    const { error } = await supabase.from("expense_categories").update({ name_en: n, name_ur: n }).eq("id", id);
+    if (error) toast.error(error.message);
+    onChange();
+  }
+  async function remove(c: Cat) {
+    try {
+      await deleteVia("delete_expense_category", c.id);
+      toast.success(`${t("deleted")} — ${c.name_en}`);
+    } catch (e) {
+      toast.error(errMsg(e));
+    }
+    onChange();
+  }
+  return (
+    <Section title={t("categories")} className="no-print">
+      <div className="space-y-1">
+        {cats.map((c) => (
+          <div key={c.id} className="flex items-center gap-2">
+            <Input key={c.name_en} className="h-9 flex-1" defaultValue={c.name_en} aria-label={t("category")}
+              onBlur={(e) => { if (e.target.value.trim() !== c.name_en) rename(c.id, e.target.value); }} />
+            <ConfirmButton size="sm" variant="outline" title={t("del")} confirmLabel={t("del")} description={`${c.name_en}: ${t("deleteCategoryHelp")}`} onConfirm={() => remove(c)}>×</ConfirmButton>
+          </div>
+        ))}
+      </div>
+      {!cats.length && <Empty />}
+    </Section>
   );
 }
 

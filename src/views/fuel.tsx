@@ -7,7 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import { fmt, fmtDate, fmtMonth, useT, type Key } from "@/lib/i18n";
 import { addDays, monthEnd, monthStart, parseQtyMilli, parseWhole, purchaseAmount, statement } from "@/lib/kiln-math";
-import { DEFAULT_UNIT, errMsg, fetchAll, MATERIALS, myId, today, UNITS, useExpenseCategories, useOwners, useSupplierAccounts, type Material } from "@/lib/data";
+import { DEFAULT_UNIT, deleteVia, errMsg, fetchAll, MATERIALS, myId, today, UNITS, useExpenseCategories, useOwners, useSupplierAccounts, type Material } from "@/lib/data";
 import { downloadExcel } from "@/lib/export";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -204,7 +204,7 @@ export default function FuelPage() {
             <LetterRow cols={11} />
             <tr><th className="rn">#</th><th className="w-44">{t("agent")}</th><th className="w-32">{t("phone")}</th><th className="n w-28">{t("openingOwed")}</th>
               <th className="n w-28">{t("matCoal")}</th><th className="n w-24">{t("matWood")}</th><th className="n w-24">{t("matBoora")}</th><th className="n w-24">{t("matOther")}</th>
-              <th className="n w-28">{t("purchases")}</th><th className="n w-28">{t("paymentsCol")}</th><th className="n w-32">{t("weOweCol")}</th><th className="w-16">{t("active")}</th></tr>
+              <th className="n w-28">{t("purchases")}</th><th className="n w-28">{t("paymentsCol")}</th><th className="n w-32">{t("weOweCol")}</th><th className="w-24">{t("active")}</th></tr>
           </thead>
           <tbody>
             {agents.map((a, i) => (
@@ -220,7 +220,11 @@ export default function FuelPage() {
                 <td className="n num">{fmt(Number(a.wood))}</td><td className="n num">{fmt(Number(a.boora))}</td><td className="n num">{fmt(Number(a.other))}</td>
                 <td className="n num">{fmt(Number(a.purchases))}</td><td className="n num">{fmt(Number(a.payments))}</td>
                 <td className="n num"><Owed value={Number(a.balance)} /></td>
-                <td className="px-2"><Switch checked={!!a.is_active} onCheckedChange={(v) => updateAgent(a.party_id!, { is_active: v })} /></td>
+                <td className="px-2"><div className="flex items-center gap-1">
+                  <Switch checked={!!a.is_active} onCheckedChange={(v) => updateAgent(a.party_id!, { is_active: v })} />
+                  <ConfirmButton size="sm" variant="outline" className="no-print h-7 px-2" title={t("del")} confirmLabel={t("del")} description={`${a.name}: ${t("deletePartyHelp")}`}
+                    onConfirm={async () => { try { await deleteVia("delete_party", a.party_id!); toast.success(`${t("deleted")} — ${a.name}`); if (fAgent === a.party_id) setFAgent(""); } catch (e) { toast.error(errMsg(e)); } refresh(); qc.invalidateQueries({ queryKey: ["transactions"] }); }}>×</ConfirmButton>
+                </div></td>
               </tr>
             ))}
             <NewAgentRow n={agents.length + 1} existing={agents} onSaved={refresh} />

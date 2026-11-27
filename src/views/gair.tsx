@@ -1,9 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { fmt, fmtDate, useT } from "@/lib/i18n";
 import { gairCheck } from "@/lib/kiln-math";
-import { useGairs } from "@/lib/data";
+import { deleteVia, errMsg, useGairs } from "@/lib/data";
+import { ConfirmButton } from "@/components/ConfirmButton";
 import { downloadExcel } from "@/lib/export";
 import { Button } from "@/components/ui/button";
 import { Empty, PageHeader, PrintHeader } from "@/components/kit";
@@ -16,6 +19,16 @@ import { LetterRow, Sheet } from "@/components/sheet";
 export default function GairPage() {
   const { t } = useT();
   const q = useGairs();
+  const qc = useQueryClient();
+  async function remove(id: string, name: string) {
+    try {
+      await deleteVia("delete_gair", id);
+      toast.success(`${t("deleted")} — ${name}`);
+    } catch (e) {
+      toast.error(errMsg(e));
+    }
+    ["gairs", "gair-check", "kiln", "kiln-weekly", "production"].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
+  }
   const all = q.data ?? [];
   const rows = all.filter((g) => g.gair_id).sort((a, b) => Number(b.number) - Number(a.number));
   const unassigned = all.find((g) => !g.gair_id);
@@ -54,7 +67,8 @@ export default function GairPage() {
           {rows.map((g, i) => (
             <tr key={g.gair_id} className={g.closed_on ? "" : "bg-warning/5"}>
               <td className="rn">{i + 1}</td>
-              <td className="font-semibold">{g.closed_on ? "" : "🔥 "}{g.gair}</td>
+              <td className="font-semibold"><div className="flex items-center justify-between gap-1"><span>{g.closed_on ? "" : "🔥 "}{g.gair}</span>
+                <ConfirmButton size="sm" variant="outline" className="no-print h-6 px-2" title={t("del")} confirmLabel={t("del")} description={`${g.gair}: ${t("deleteGairHelp")}`} onConfirm={() => remove(g.gair_id!, g.gair ?? "")}>×</ConfirmButton></div></td>
               <td className="num text-xs">{fmtDate(g.started_on)} → {g.closed_on ? fmtDate(g.closed_on) : <span className="font-sans font-semibold text-warning-foreground">{t("gairOpen")}</span>}</td>
               <td className="n num">{fmt(Number(g.loaded_bricks))}</td>
               <td className="n num ro">{Number(g.loaded_from_store) ? fmt(Number(g.loaded_from_store)) : ""}</td>

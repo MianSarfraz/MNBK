@@ -1166,6 +1166,11 @@ export type Database = {
       }
     }
     Functions: {
+      delete_expense_category: { Args: { _id: string }; Returns: undefined }
+      delete_gair: { Args: { _id: string }; Returns: undefined }
+      delete_party: { Args: { _id: string }; Returns: undefined }
+      delete_quality: { Args: { _id: string }; Returns: undefined }
+      delete_season: { Args: { _id: string }; Returns: undefined }
       ensure_season: { Args: { _d: string }; Returns: string }
       ensure_week: { Args: { _d: string }; Returns: string }
       line_amount: { Args: { _qty: number; _rate: number; _unit: string }; Returns: number }

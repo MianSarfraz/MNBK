@@ -8,12 +8,13 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import { fmt, fmtDate, useT } from "@/lib/i18n";
 import { parseWhole } from "@/lib/kiln-math";
-import { customerId, errMsg, fetchAll, myId, useCustomerAccounts, useOwners, useQualities } from "@/lib/data";
+import { customerId, deleteVia, errMsg, fetchAll, myId, useCustomerAccounts, useOwners, useQualities } from "@/lib/data";
 import { NewPaymentRow as NewPaymentRowLazy } from "@/views/payments";
 import { downloadExcel } from "@/lib/export";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { ConfirmButton } from "@/components/ConfirmButton";
 import { Empty, methodLabel, PageHeader, Stat } from "@/components/kit";
 import { Cell, LetterRow, Sheet } from "@/components/sheet";
 
@@ -49,6 +50,16 @@ export default function CustomersPage() {
     refresh();
   }
 
+  async function remove(id: string, name: string) {
+    try {
+      await deleteVia("delete_party", id);
+      toast.success(`${t("deleted")} — ${name}`);
+    } catch (e) {
+      toast.error(errMsg(e));
+    }
+    refresh();
+  }
+
   return (
     <div className="space-y-3">
       <PageHeader title={t("customerMaster")} sub={t("customerMasterHelp")} actions={
@@ -74,7 +85,7 @@ export default function CustomersPage() {
           <tr>
             <th className="rn">#</th><th className="w-16">{t("customerIdCol")}</th><th className="w-8" title={t("favourites")}>★</th><th className="w-48">{t("name")}</th><th className="w-32">{t("phone")}</th><th>{t("address")}</th>
             <th className="n w-28">{t("openingDue")}</th><th className="n w-24">{t("bricksCol")}</th><th className="n w-28">{t("purchases")}</th>
-            <th className="n w-28">{t("paymentsCol")}</th><th className="n w-32">{t("outstandingCol")}</th><th className="w-40">{t("note")}</th><th className="w-16">{t("active")}</th>
+            <th className="n w-28">{t("paymentsCol")}</th><th className="n w-32">{t("outstandingCol")}</th><th className="w-40">{t("note")}</th><th className="w-24">{t("active")}</th>
           </tr>
         </thead>
         <tbody>
@@ -97,7 +108,11 @@ export default function CustomersPage() {
               <td className="n num">{fmt(Number(c.payments))}</td>
               <td className="n num"><Link href={`/customers/${c.party_id}`}><Outstanding value={Number(c.outstanding)} /></Link></td>
               <td className="c"><Cell value={c.notes ?? ""} placeholder="—" onCommit={(v) => update(c.party_id!, { notes: v.trim() || null })} /></td>
-              <td className="px-2">{!c.is_cash && <Switch checked={!!c.is_active} onCheckedChange={(v) => update(c.party_id!, { is_active: v })} />}</td>
+              <td className="px-2">{!c.is_cash && <div className="flex items-center gap-1">
+                <Switch checked={!!c.is_active} onCheckedChange={(v) => update(c.party_id!, { is_active: v })} />
+                <ConfirmButton size="sm" variant="outline" className="no-print h-7 px-2" title={t("del")} confirmLabel={t("del")}
+                  description={`${c.name}: ${t("deletePartyHelp")}`} onConfirm={() => remove(c.party_id!, c.name ?? "")}>×</ConfirmButton>
+              </div>}</td>
             </tr>
           ))}
           <NewCustomerRow n={rows.length + 1} existing={all} onSaved={refresh} />
@@ -228,7 +243,9 @@ export function CustomerAccount({ id }: { id: string }) {
             <tr key={x.id}>
               <td className="rn">{i + 1}</td><td className="num text-xs">{`P-${String(x.ref_no).padStart(4, "0")}`}</td><td className="num">{fmtDate(x.entry_date)}</td>
               <td>{c.name}{x.sale_id && <span className="ms-1 text-[10px] text-muted-foreground">{t("atSale")}</span>}</td>
-              <td className="n num font-semibold">{x.direction === "out" ? "−" : ""}{fmt(Number(x.amount))}</td><td>{methodLabel(t, x.method)}</td><td>{x.reference}</td><td className="text-xs"><OwnerName id={x.handler_user_id} /></td><td className="ro">{x.note}</td><td className="no-print" />
+              <td className="n num font-semibold">{x.direction === "out" ? "−" : ""}{fmt(Number(x.amount))}</td><td>{methodLabel(t, x.method)}</td><td>{x.reference}</td><td className="text-xs"><OwnerName id={x.handler_user_id} /></td><td className="ro">{x.note}</td>
+              <td className="no-print px-1">{x.category !== "cash_sale" && <ConfirmButton size="sm" variant="outline" title={t("del")} confirmLabel={t("del")}
+                onConfirm={async () => { const { error } = await supabase.from("transactions").update({ deleted_at: new Date().toISOString() }).eq("id", x.id); if (error) toast.error(error.message); qc.invalidateQueries(); }}>×</ConfirmButton>}</td>
             </tr>
           ))}
           {<NewPaymentRowLazy n={(pays.data ?? []).length + 1} customers={accounts.data ?? []} fixedCustomer={id} onSaved={() => qc.invalidateQueries()} />}

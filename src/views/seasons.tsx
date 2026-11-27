@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { fmtDate, useT } from "@/lib/i18n";
 import { generateWeeks } from "@/lib/kiln-math";
-import { myId, useSeasons, useWeeks } from "@/lib/data";
+import { deleteVia, errMsg, myId, useSeasons, useWeeks } from "@/lib/data";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -45,6 +45,17 @@ export default function SeasonsPage() {
     qc.invalidateQueries({ queryKey: ["seasons"] });
   }
 
+  async function remove(id: string) {
+    try {
+      await deleteVia("delete_season", id);
+      toast.success(t("deleted"));
+      if (sel === id) setSel(undefined);
+    } catch (e) {
+      toast.error(errMsg(e));
+    }
+    qc.invalidateQueries({ queryKey: ["seasons"] });
+  }
+
   return (
     <div className="space-y-4">
     <p className="rounded-lg border bg-card p-3 text-sm text-muted-foreground">{t("seasonsAutoHelp")}</p>
@@ -70,6 +81,7 @@ export default function SeasonsPage() {
               <ConfirmButton size="sm" variant="outline" description={s.is_closed ? t("reopen") : t("close")} onConfirm={() => toggleClose(s.id, s.is_closed)}>
                 {s.is_closed ? t("reopen") : t("close")}
               </ConfirmButton>
+              <ConfirmButton size="sm" variant="outline" title={t("del")} confirmLabel={t("del")} description={`${s.name}: ${t("deleteSeasonHelp")}`} onConfirm={() => remove(s.id)}>×</ConfirmButton>
             </div>
             {sel === s.id && (
               <div className="mt-3 grid grid-cols-2 gap-1 text-sm md:grid-cols-3">

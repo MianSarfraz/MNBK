@@ -138,6 +138,12 @@ export function seasonForDate<S extends { id: string; start_date: string; end_da
   return seasons.filter((s) => s.start_date <= date && s.end_date >= date).sort((a, b) => b.start_date.localeCompare(a.start_date))[0];
 }
 
+/** Soft-delete through the database (checks owner, cascades or refuses as each function documents). */
+export async function deleteVia(fn: "delete_party" | "delete_season" | "delete_quality" | "delete_gair" | "delete_expense_category", id: string) {
+  const { error } = await supabase.rpc(fn, { _id: id });
+  if (error) throw error;
+}
+
 export function errMsg(err: unknown) {
   if (err && typeof err === "object" && "message" in err) return String((err as { message: unknown }).message);
   return String(err);

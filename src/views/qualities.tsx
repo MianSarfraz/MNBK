@@ -5,7 +5,8 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useT } from "@/lib/i18n";
 import { useState } from "react";
-import { addRoray, useQualities } from "@/lib/data";
+import { addRoray, deleteVia, errMsg, useQualities } from "@/lib/data";
+import { ConfirmButton } from "@/components/ConfirmButton";
 import { AddBrickType } from "@/components/AddBrickType";
 import { PageHeader, Section } from "@/components/kit";
 import { Button } from "@/components/ui/button";
@@ -40,6 +41,19 @@ export default function QualitiesPage() {
     qc.invalidateQueries({ queryKey: ["qualities"] });
     qc.invalidateQueries({ queryKey: ["finished-stock"] });
   }
+  async function remove(id: string, name: string) {
+    try {
+      await deleteVia("delete_quality", id);
+      toast.success(`${t("deleted")} — ${name}`);
+    } catch (e) {
+      toast.error(errMsg(e));
+    }
+    qc.invalidateQueries({ queryKey: ["qualities"] });
+    qc.invalidateQueries({ queryKey: ["finished-stock"] });
+  }
+  const del = (x: { id: string; name_en: string }) => (
+    <ConfirmButton size="sm" variant="outline" title={t("del")} confirmLabel={t("del")} description={`${x.name_en}: ${t("deleteTypeHelp")}`} onConfirm={() => remove(x.id, x.name_en)}>×</ConfirmButton>
+  );
   async function move(i: number, dir: -1 | 1) {
     const a = types[i], b = types[i + dir];
     if (!a || !b) return;
@@ -72,6 +86,7 @@ export default function QualitiesPage() {
             <Button size="sm" variant="outline" disabled={i === 0} onClick={() => move(i, -1)} aria-label={t("moveUp")}>↑</Button>
             <Button size="sm" variant="outline" disabled={i === types.length - 1} onClick={() => move(i, 1)} aria-label={t("moveDown")}>↓</Button>
             <Switch checked={x.is_active} onCheckedChange={(v) => update(x.id, { is_active: v })} aria-label={x.is_active ? t("active") : t("inactive")} />
+            {del(x)}
           </div>
         ))}
       </div>
@@ -89,6 +104,7 @@ export default function QualitiesPage() {
                 onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== x.name_en) update(x.id, { name_en: v, name_ur: v }); }} />
               <span className="text-xs text-muted-foreground">{t("perLoad")}</span>
               <Switch checked={x.is_active} onCheckedChange={(v) => update(x.id, { is_active: v })} aria-label={x.is_active ? t("active") : t("inactive")} />
+              {del(x)}
             </div>
           ))}
         </div>
@@ -108,6 +124,7 @@ export default function QualitiesPage() {
                   {types.map((n) => <option key={n.id} value={n.id}>{n.name_en}</option>)}
                 </select>
                 {!x.stock_quality_id && <Button size="sm" variant="outline" onClick={() => makeBrickType(x.id, x.name_en)}>{t("makeBrickType")}</Button>}
+                {del(x)}
               </div>
             ))}
           </div>

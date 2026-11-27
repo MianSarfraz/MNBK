@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -11,7 +12,7 @@ import {
   addDays, amountFor, monthEnd, parseWhole, rateOn, statement, txnEffect, weekStart,
   type Direction, type LedgerItem, type Rate, type TxnKind,
 } from "@/lib/kiln-math";
-import { errMsg, myId, openReceipt, today, uploadReceipt, useOwners, useSeasons, WORKER_KINDS, type PartyKind } from "@/lib/data";
+import { deleteVia, errMsg, myId, openReceipt, today, uploadReceipt, useOwners, useSeasons, WORKER_KINDS, type PartyKind } from "@/lib/data";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -424,9 +425,23 @@ function RatesEditor({ partyId, rates }: { partyId: string; rates: Tables<"party
   );
 }
 
+/** Where the list of this kind of party lives, to go back to after deleting one. */
+const listHref = (k: string) => (k === "customer" ? "/customers" : k === "patheer" ? "/patheer" : k === "rehra" || k === "nakasi" ? `/${k}` : `/people/${k}`);
+
 function PartyDetails({ party }: { party: Tables<"parties"> }) {
   const { t } = useT();
   const qc = useQueryClient();
+  const router = useRouter();
+  async function remove() {
+    try {
+      await deleteVia("delete_party", party.id);
+      toast.success(`${t("deleted")} — ${party.name}`);
+      qc.invalidateQueries();
+      router.push(listHref(party.kind));
+    } catch (e) {
+      toast.error(errMsg(e));
+    }
+  }
   const [f, setF] = useState({
     name: party.name, phone: party.phone ?? "", address: party.address ?? "", type: party.party_type ?? "",
     salary: String(party.monthly_salary ?? 0), openAmt: String(Math.abs(Number(party.opening_balance))),
@@ -462,6 +477,11 @@ function PartyDetails({ party }: { party: Tables<"parties"> }) {
           <Switch checked={party.is_active} onCheckedChange={(v) => save({ is_active: v })} />
           <span>{party.is_active ? t("active") : t("inactive")}</span>
         </div>
+        {!party.is_cash && (
+          <ConfirmButton variant="destructive" className="ms-auto" confirmLabel={t("del")} description={`${party.name}: ${t("deletePartyHelp")}`} onConfirm={remove}>
+            {t("del")}
+          </ConfirmButton>
+        )}
       </div>
     </Section>
   );

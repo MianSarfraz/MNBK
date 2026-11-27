@@ -372,3 +372,54 @@ describe("fuel khatta: coal, wood, boora from agents", () => {
     await expect(q(`insert into purchases (entry_date, supplier_id, amount) values ('2026-11-20', $1, 100)`, [await customer("Rana Shani")])).rejects.toThrow(/agent/);
   });
 });
+
+describe("deleting things that had no delete", () => {
+  it("deleting a customer removes them, their sales and payments; stock comes back", async () => {
+    const c = (await one<{ id: string }>(`insert into parties (kind, name, created_by) values ('customer', 'Delete Me', $1) returning id`, [U])).id;
+    const before = (await stock("Tirak")).balance;
+    await sell("Delete Me", "Tirak", 1000, 15000, 5000);
+    expect((await stock("Tirak")).balance).toBe(before - 1000);
+    await q(`select public.delete_party($1)`, [c]);
+    expect((await stock("Tirak")).balance).toBe(before);
+    expect(await q(`select 1 from customer_accounts where party_id=$1`, [c])).toHaveLength(0);
+    expect(await q(`select 1 from transactions where party_id=$1 and deleted_at is null`, [c])).toHaveLength(0);
+    // The name is free again.
+    await q(`insert into parties (kind, name, created_by) values ('customer', 'Delete Me', $1)`, [U]);
+  });
+  it("deleting an agent takes their purchases off the fuel khatta", async () => {
+    const a = (await one<{ id: string }>(`insert into parties (kind, name, created_by) values ('vendor', 'Gone Agent', $1) returning id`, [U])).id;
+    await q(`insert into purchases (entry_date, supplier_id, amount) values ('2026-11-20', $1, 5000)`, [a]);
+    await q(`select public.delete_party($1)`, [a]);
+    expect(await q(`select 1 from purchases where supplier_id=$1 and deleted_at is null`, [a])).toHaveLength(0);
+    expect(await q(`select 1 from supplier_accounts where party_id=$1`, [a])).toHaveLength(0);
+  });
+  it("Nakad Bikri still can't be deleted", async () => {
+    await expect(q(`select public.delete_party($1)`, [await customer("Nakad Bikri")])).rejects.toThrow(/permanent/);
+  });
+  it("a used brick type can't be deleted; an unused one can", async () => {
+    await expect(q(`select public.delete_quality($1)`, [await type("Awal")])).rejects.toThrow(/switch it off/);
+    const n = (await one<{ id: string }>(`insert into qualities (name_en, name_ur, kind, category, sort_order, created_by) values ('Typo Type', 'Typo Type', 'nakasi', 'normal', 99, $1) returning id`, [U])).id;
+    await q(`select public.delete_quality($1)`, [n]);
+    expect(await q(`select 1 from finished_stock where quality_id=$1`, [n])).toHaveLength(0);
+  });
+  it("a season with entries can't be deleted; an empty one can", async () => {
+    const used = (await one<{ id: string }>(`select season_id as id from sales where deleted_at is null limit 1`)).id;
+    await expect(q(`select public.delete_season($1)`, [used])).rejects.toThrow(/has entries/);
+    const s = (await one<{ id: string }>(`insert into seasons (name, start_date, end_date, created_by) values ('Empty', '2031-01-01', '2031-06-30', $1) returning id`, [U])).id;
+    await q(`select public.delete_season($1)`, [s]);
+    expect((await one<{ deleted_at: string | null }>(`select deleted_at from seasons where id=$1`, [s])).deleted_at).not.toBeNull();
+  });
+  it("deleting a gair leaves its entries unassigned", async () => {
+    const g = (await one<{ id: string }>(`select id from gairs where deleted_at is null order by number desc limit 1`)).id;
+    await q(`select public.delete_gair($1)`, [g]);
+    expect(await q(`select 1 from kiln_entries where gair_id=$1 and deleted_at is null`, [g])).toHaveLength(0);
+    expect(await q(`select 1 from gair_check where gair_id=$1`, [g])).toHaveLength(0);
+  });
+  it("an expense category in use can't be deleted; an unused one can", async () => {
+    const used = (await one<{ id: string }>(`select id from expense_categories where deleted_at is null limit 1`)).id;
+    await q(`insert into transactions (entry_date, kind, direction, amount, method, handler_user_id, expense_category_id, created_by) values ('2026-11-20', 'expense', 'out', 100, 'cash', $1, $2, $1)`, [U, used]);
+    await expect(q(`select public.delete_expense_category($1)`, [used])).rejects.toThrow(/change them/);
+    const c = (await one<{ id: string }>(`insert into expense_categories (name_en, name_ur, created_by) values ('Typo cat', 'Typo cat', $1) returning id`, [U])).id;
+    await q(`select public.delete_expense_category($1)`, [c]);
+  });
+});
