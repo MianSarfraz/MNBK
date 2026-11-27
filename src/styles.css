@@ -141,3 +141,6 @@
 .sheet .dim { color: color-mix(in oklch, var(--color-muted-foreground) 55%, transparent); }
 .sheet-wrap { overflow-x: auto; border: 1px solid var(--grid); border-radius: 0.5rem; background: var(--color-card); }
 .sheet-wrap > .sheet { border-style: hidden; }
+
+/* Urdu (Nastaliq) — used for the proprietor's name on invoices. */
+.font-urdu { font-family: "Noto Nastaliq Urdu", "Jameel Noori Nastaleeq", serif; line-height: 2.1; }

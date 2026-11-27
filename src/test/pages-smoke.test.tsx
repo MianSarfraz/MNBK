@@ -414,6 +414,8 @@ describe("invoice generator", () => {
     const { spy } = await mount(`/sales/bill?ids=${SALE}`);
     expect(await screen.findByText("Muhammad Nawaz", {}, { timeout: 4000 })).toBeInTheDocument();
     expect(screen.getByText("0304-1586864 · 0300-7643507")).toBeInTheDocument();
+    expect(screen.getByText("چوہدری رب نواز (مرحوم)")).toBeInTheDocument();
+    expect(screen.getByText("پروپرائٹر")).toBeInTheDocument();
     expect(screen.getAllByAltText("Mian Nawaz Bricks").length).toBeGreaterThan(0);
     expect((await screen.findAllByText("Rs 145,000", {}, { timeout: 4000 })).length).toBeGreaterThan(1); // picker row + bill total
     expect(screen.getByText("Rs 45,000")).toBeInTheDocument(); // 145,000 − 100,000 received
