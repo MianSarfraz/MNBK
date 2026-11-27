@@ -36,7 +36,9 @@ export default function CustomersPage() {
   const [showInactive, setShowInactive] = useState(false);
   const all = accounts.data ?? [];
   const s = search.trim().toLowerCase();
-  const rows = useMemo(() => all.filter((c) => (showInactive || c.is_active) && (!s || (c.name ?? "").toLowerCase().includes(s) || (c.phone ?? "").includes(s))), [all, s, showInactive]);
+  // Favourites first, then the rest in their usual order.
+  const rows = useMemo(() => all.filter((c) => (showInactive || c.is_active) && (!s || (c.name ?? "").toLowerCase().includes(s) || (c.phone ?? "").includes(s)))
+    .sort((a, b) => Number(!!b.is_favourite) - Number(!!a.is_favourite)), [all, s, showInactive]);
   const owes = all.reduce((a, c) => a + Math.max(0, Number(c.outstanding)), 0);
   const advance = all.reduce((a, c) => a + Math.max(0, -Number(c.outstanding)), 0);
   const refresh = () => qc.invalidateQueries();
@@ -68,9 +70,9 @@ export default function CustomersPage() {
 
       <Sheet minWidth={1100}>
         <thead>
-          <LetterRow cols={11} />
+          <LetterRow cols={12} />
           <tr>
-            <th className="rn">#</th><th className="w-16">{t("customerIdCol")}</th><th className="w-48">{t("name")}</th><th className="w-32">{t("phone")}</th><th>{t("address")}</th>
+            <th className="rn">#</th><th className="w-16">{t("customerIdCol")}</th><th className="w-8" title={t("favourites")}>★</th><th className="w-48">{t("name")}</th><th className="w-32">{t("phone")}</th><th>{t("address")}</th>
             <th className="n w-28">{t("openingDue")}</th><th className="n w-24">{t("bricksCol")}</th><th className="n w-28">{t("purchases")}</th>
             <th className="n w-28">{t("paymentsCol")}</th><th className="n w-32">{t("outstandingCol")}</th><th className="w-40">{t("note")}</th><th className="w-16">{t("active")}</th>
           </tr>
@@ -80,6 +82,8 @@ export default function CustomersPage() {
             <tr key={c.party_id} className={c.is_active ? "" : "opacity-60"}>
               <td className="rn">{i + 1}</td>
               <td className="num text-xs"><Link href={`/customers/${c.party_id}`} className="text-primary hover:underline">{customerId(c.ref_no)}</Link></td>
+              <td className="px-1 text-center"><button type="button" className={`text-base ${c.is_favourite ? "text-warning" : "text-muted-foreground/50 hover:text-warning"}`}
+                onClick={() => update(c.party_id!, { is_favourite: !c.is_favourite })} aria-label={c.is_favourite ? t("unmarkFavourite") : t("markFavourite")}>{c.is_favourite ? "★" : "☆"}</button></td>
               <td className="c">
                 {c.is_cash ? <Link href={`/customers/${c.party_id}`} className="block px-2 font-medium">{c.name} <span className="rounded bg-success/15 px-1 text-[10px] text-success">{t("cash")}</span></Link>
                   : <Cell value={c.name ?? ""} className="font-medium" onCommit={(v) => v.trim() && update(c.party_id!, { name: v.trim() })} />}
@@ -98,7 +102,7 @@ export default function CustomersPage() {
           ))}
           <NewCustomerRow n={rows.length + 1} existing={all} onSaved={refresh} />
           <tr className="total">
-            <td className="rn" /><td colSpan={5}>{t("total")}</td>
+            <td className="rn" /><td colSpan={6}>{t("total")}</td>
             <td className="n num">{fmt(rows.reduce((a, c) => a + Number(c.bricks), 0))}</td>
             <td className="n num">{fmt(rows.reduce((a, c) => a + Number(c.purchases), 0))}</td>
             <td className="n num">{fmt(rows.reduce((a, c) => a + Number(c.payments), 0))}</td>
@@ -144,6 +148,7 @@ function NewCustomerRow({ n, existing, onSaved }: { n: number; existing: Acct[];
     <tr className="new no-print">
       <td className="rn">{n}</td>
       <td className="text-xs text-muted-foreground">{t("new")}</td>
+      <td />
       <td className={`c ${dup ? "warn" : ""}`}><input className={`cell font-medium ${dup ? "bad" : ""}`} placeholder={t("newCustomerName")} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} onKeyDown={enter} title={dup ? t("duplicateCustomer") : undefined} /></td>
       <td className="c"><input className="cell" inputMode="tel" placeholder="—" value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} onKeyDown={enter} /></td>
       <td className="c"><input className="cell" placeholder="—" value={f.address} onChange={(e) => setF({ ...f, address: e.target.value })} onKeyDown={enter} /></td>
@@ -222,11 +227,11 @@ export function CustomerAccount({ id }: { id: string }) {
           {(pays.data ?? []).map((x, i) => (
             <tr key={x.id}>
               <td className="rn">{i + 1}</td><td className="num text-xs">{`P-${String(x.ref_no).padStart(4, "0")}`}</td><td className="num">{fmtDate(x.entry_date)}</td>
-              <td>{c.name}{x.category === "cash_sale" && <span className="ms-1 text-[10px] text-success">{t("paidAuto")}</span>}</td>
+              <td>{c.name}{x.sale_id && <span className="ms-1 text-[10px] text-muted-foreground">{t("atSale")}</span>}</td>
               <td className="n num font-semibold">{x.direction === "out" ? "−" : ""}{fmt(Number(x.amount))}</td><td>{methodLabel(t, x.method)}</td><td>{x.reference}</td><td className="text-xs"><OwnerName id={x.handler_user_id} /></td><td className="ro">{x.note}</td><td className="no-print" />
             </tr>
           ))}
-          {!c.is_cash && <NewPaymentRowLazy n={(pays.data ?? []).length + 1} customers={accounts.data ?? []} fixedCustomer={id} onSaved={() => qc.invalidateQueries()} />}
+          {<NewPaymentRowLazy n={(pays.data ?? []).length + 1} customers={accounts.data ?? []} fixedCustomer={id} onSaved={() => qc.invalidateQueries()} />}
           <tr className="total"><td className="rn" /><td colSpan={3}>{t("total")}</td><td className="n num">{fmt(Number(c.payments))}</td><td colSpan={5} /></tr>
         </tbody>
       </Sheet>

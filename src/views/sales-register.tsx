@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -13,7 +13,8 @@ import { downloadExcel } from "@/lib/export";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { ConfirmButton } from "@/components/ConfirmButton";
-import { Empty, PageHeader, PrintHeader, Stat } from "@/components/kit";
+import { Empty, Field, NumInput, OwnerSelect, PageHeader, PrintHeader, Stat } from "@/components/kit";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Cell, LetterRow, Sheet } from "@/components/sheet";
 
 type Line = Tables<"sale_lines">;
@@ -40,6 +41,8 @@ export default function SalesRegister() {
   });
 
   const customers = accounts.data ?? [];
+  const favourites = customers.filter((c) => c.is_favourite && c.is_active);
+  const [pick, setPick] = useState({ name: "", n: 0 });
   const custName = (id: string | null) => customers.find((c) => c.party_id === id)?.name ?? "—";
   const items = [...(types.data ?? []), ...(roray.data ?? [])];
   const typeName = (id: string | null) => items.find((q) => q.id === id)?.name_en ?? "(old) " + (id ?? "").slice(0, 4);
@@ -80,8 +83,8 @@ export default function SalesRegister() {
       const { error } = await supabase.from("sale_items").update({ deleted_at: now }).eq("id", l.item_id!);
       if (error) return void toast.error(error.message);
     } else {
-      // Last line of the sale: void the sale and money taken with it (Nakad's auto-payment follows by itself).
-      const { error: e1 } = await supabase.from("transactions").update({ deleted_at: now }).eq("sale_id", l.sale_id!).neq("category", "cash_sale").is("deleted_at", null);
+      // Last line of the sale: void the sale and the money taken with it.
+      const { error: e1 } = await supabase.from("transactions").update({ deleted_at: now }).eq("sale_id", l.sale_id!).is("deleted_at", null);
       if (e1) return void toast.error(e1.message);
       const { error } = await supabase.from("sales").update({ deleted_at: now }).eq("id", l.sale_id!);
       if (error) return void toast.error(error.message);
@@ -132,6 +135,16 @@ export default function SalesRegister() {
       </div>
 
       <StockStrip />
+      <CustomerList id="sale-customers" customers={customers} />
+      {favourites.length > 0 && (
+        <div className="no-print flex flex-wrap items-center gap-1.5 text-xs">
+          <span className="py-1 text-muted-foreground">★ {t("favourites")}:</span>
+          {favourites.map((c) => (
+            <button key={c.party_id} type="button" className="rounded-full border bg-card px-2.5 py-1 font-medium hover:border-primary"
+              onClick={() => setPick((p) => ({ name: c.name ?? "", n: p.n + 1 }))}>{c.name}</button>
+          ))}
+        </div>
+      )}
 
       <Sheet minWidth={1120}>
         <thead>
@@ -160,8 +173,8 @@ export default function SalesRegister() {
                   </select>
                 </td>
                 <td className="c" title={isLoad(l.unit) ? t("loads") : t("bricks")}><Cell numeric value={String(Number(l.quantity))} label={`${saleId(l.invoice_no)} ${t("quantityCol")}`} onCommit={(v) => { const n = parseWhole(v); if (n && n > 0) updateItem(l, { quantity: n }); }} /></td>
-                <td className="c" title={isLoad(l.unit) ? t("perLoad") : t("per1000")}><Cell numeric value={String(Number(l.rate_per_1000))} onCommit={(v) => { const n = parseWhole(v); if (n && n > 0) updateItem(l, { rate_per_1000: n }); }} /></td>
-                <td className="n num font-semibold">{fmt(Number(l.amount))}</td>
+                <td className="c" title={isLoad(l.unit) ? t("perLoad") : t("per1000")}><Cell numeric value={String(Number(l.rate_per_1000))} onCommit={(v) => { const n = parseWhole(v || "0"); if (n != null && n >= 0) updateItem(l, { rate_per_1000: n }); }} /></td>
+                <td className="n num font-semibold">{Number(l.rate_per_1000) > 0 ? fmt(Number(l.amount)) : <span className="text-[11px] font-normal text-warning-foreground">{t("rateLater")}</span>}</td>
                 <td className="n num ro">{firstOfSale ? fmt(paidAtSale.get(l.sale_id!) ?? 0) : ""}</td>
                 <td className="c">{firstOfSale ? <Cell value={l.vehicle_no ?? ""} placeholder="—" onCommit={(v) => updateSale(l.sale_id!, { vehicle_no: v.trim() || null })} /> : null}</td>
                 <td className="c">{firstOfSale ? <Cell value={l.driver_name ?? ""} placeholder="—" onCommit={(v) => updateSale(l.sale_id!, { driver_name: v.trim() || null })} /> : null}</td>
@@ -170,7 +183,7 @@ export default function SalesRegister() {
               </tr>
             );
           })}
-          <NewSaleRow n={lines.length + 1} customers={customers} types={types.data ?? []} roray={roray.data ?? []} remaining={remaining} lastLines={linesQ.data ?? []} onSaved={refresh} />
+          <NewSaleRow n={lines.length + 1} customers={customers} types={types.data ?? []} roray={roray.data ?? []} remaining={remaining} lastLines={linesQ.data ?? []} pick={pick} onSaved={refresh} />
           <tr className="total">
             <td className="rn" /><td colSpan={4}>{t("total")}</td>
             <td className="n num">{fmt(totalQty)}{totalLoads ? <div className="text-[11px] font-normal">+ {fmt(totalLoads)} {t("loads")}</div> : null}</td><td /><td className="n num">{fmt(totalAmt)}</td><td colSpan={5} />
@@ -182,46 +195,74 @@ export default function SalesRegister() {
   );
 }
 
-/** Blank row at the bottom of the register: one brick type per sale, like the paper register. */
-function NewSaleRow({ n, customers, types, roray, remaining, lastLines, onSaved }: {
+/** Blank rows at the bottom of the register, typed like a sheet: customer by name (a new name adds the customer),
+ *  one or more brick types, rate optional. Nakad Bikri asks how much was received (and any discount) on save. */
+function NewSaleRow({ n, customers, types, roray, remaining, lastLines, pick, onSaved }: {
   n: number; customers: Tables<"customer_accounts">[]; types: Tables<"qualities">[]; roray: Tables<"qualities">[]; remaining: (qid: string) => number;
-  lastLines: Line[]; onSaved: () => void;
+  lastLines: Line[]; pick: { name: string; n: number }; onSaved: () => void;
 }) {
   const { t } = useT();
-  const blank = { date: "", customer: "", type: "", qty: "", rate: "", vehicle: "", driver: "", note: "", paid: "" };
+  const blankLine = { type: "", qty: "", rate: "" };
+  const blank = { date: "", customer: "", vehicle: "", driver: "", note: "", paid: "" };
   const [f, setF] = useState(blank);
+  const [lines, setLines] = useState([blankLine]);
   const [busy, setBusy] = useState(false);
+  const [ask, setAsk] = useState<null | { gross: number; save: (paid: number, discount: number, handler: string) => Promise<void> }>(null);
   const [me, setMe] = useState("");
+  const qtyRef = useRef<HTMLInputElement>(null);
   useEffect(() => { myId().then(setMe).catch(() => {}); }, []);
+  useEffect(() => { if (pick.n) { setF((x) => ({ ...x, customer: pick.name })); qtyRef.current?.focus(); } }, [pick]);
   const date = f.date || today();
-  const qty = parseWhole(f.qty) ?? 0;
-  const rate = parseWhole(f.rate) ?? 0;
-  const cust = customers.find((c) => c.party_id === f.customer);
-  const byLoad = roray.some((q) => q.id === f.type);
-  const left = f.type ? remaining(f.type) : 0;
-  const tooMuch = !!f.type && !byLoad && qty > 0 && !canSell(left, qty);
+  const cust = findCustomer(customers, f.customer);
+  const isNew = !!f.customer.trim() && !cust;
+  const byLoad = (qid: string) => roray.some((q) => q.id === qid);
+  const parsed = lines.map((l) => {
+    const qty = parseWhole(l.qty) ?? 0, rate = parseWhole(l.rate) ?? 0, load = byLoad(l.type);
+    // Stock warning only (never blocks): bricks of the same type across lines count together.
+    const sameType = lines.filter((x) => x.type === l.type).reduce((s, x) => s + (parseWhole(x.qty) ?? 0), 0);
+    const over = !!l.type && !load && qty > 0 && !canSell(remaining(l.type), sameType);
+    return { ...l, q: qty, r: rate, load, over, amount: qty > 0 ? lineAmount(qty, rate, load ? "load" : "thousand") : 0 };
+  });
+  const filled = parsed.filter((l) => l.type || l.qty || l.rate);
+  const gross = filled.reduce((s, l) => s + l.amount, 0);
+  const ready = !!f.customer.trim() && filled.length > 0 && filled.every((l) => l.type && l.q > 0);
 
-  // Pre-fill the rate this customer (or anyone) last paid for this brick type.
-  function pickType(type: string) {
-    const last = [...lastLines].reverse().find((l) => l.quality_id === type && (!f.customer || l.customer_id === f.customer))
-      ?? [...lastLines].reverse().find((l) => l.quality_id === type);
-    setF((x) => ({ ...x, type, rate: x.rate || (last ? String(Number(last.rate_per_1000)) : "") }));
+  function setLine(i: number, patch: Partial<typeof blankLine>) {
+    setLines((ls) => ls.map((l, j) => {
+      if (j !== i) return l;
+      const next = { ...l, ...patch };
+      // Pre-fill the rate this customer (or anyone) last paid for this type.
+      if (patch.type && !l.rate) {
+        const last = [...lastLines].reverse().find((x) => x.quality_id === patch.type && (!cust || x.customer_id === cust.party_id))
+          ?? [...lastLines].reverse().find((x) => x.quality_id === patch.type);
+        if (last && Number(last.rate_per_1000) > 0) next.rate = String(Number(last.rate_per_1000));
+      }
+      return next;
+    }));
   }
-  async function save() {
-    if (!f.customer) return void toast.error(t("chooseCustomer"));
-    if (!f.type) return void toast.error(t("brickType"));
-    if (qty <= 0 || rate <= 0) return void toast.error(t("incompleteLine"));
-    if (tooMuch) return void toast.error(`${t("notEnoughStock")}: ${t("available")} ${fmt(left)}`);
+  async function customerId(): Promise<string> {
+    if (cust) return cust.party_id!;
+    const name = f.customer.trim().replace(/\s+/g, " ");
+    const { data, error } = await supabase.from("parties").insert({ kind: "customer", name, created_by: await myId() }).select("id").single();
+    if (error) throw new Error(/unique|duplicate/i.test(error.message) ? t("duplicateCustomer") : error.message);
+    toast.success(`${t("newCustomerAdded")}: ${name}`);
+    return data.id;
+  }
+  async function create(paid: number, discount: number, handler: string) {
     setBusy(true);
     try {
-      const paid = cust?.is_cash ? 0 : parseWhole(f.paid) ?? 0;
+      const cid = await customerId();
       const { error } = await supabase.rpc("create_sale", {
-        _entry_date: date, _customer_id: f.customer, _vehicle_no: f.vehicle, _driver_name: f.driver, _discount: 0, _delivery: 0, _note: f.note,
-        _items: [{ quality_id: f.type, quantity: qty, rate_per_1000: rate }], _paid: paid, _method: "cash", _handler: paid > 0 ? me : null,
+        _entry_date: date, _customer_id: cid, _vehicle_no: f.vehicle, _driver_name: f.driver, _discount: discount, _delivery: 0, _note: f.note,
+        _items: filled.map((l) => ({ quality_id: l.type, quantity: l.q, rate_per_1000: l.r })), _paid: paid, _method: "cash", _handler: paid > 0 ? handler || me : null,
       });
       if (error) throw error;
-      toast.success(`${t("saved")} — ${fmt(qty)} ${byLoad ? t("loads") : t("bricks")}`);
-      setF({ ...blank, date: f.date, customer: f.customer });
+      const bricks = filled.filter((l) => !l.load).reduce((s, l) => s + l.q, 0), loads = filled.filter((l) => l.load).reduce((s, l) => s + l.q, 0);
+      toast.success(`${t("saved")} — ${bricks ? `${fmt(bricks)} ${t("bricks")}` : ""}${bricks && loads ? " + " : ""}${loads ? `${fmt(loads)} ${t("loads")}` : ""}`);
+      if (filled.some((l) => l.over)) toast.warning(t("stockOverWarn"));
+      setF({ ...blank, date: f.date, customer: f.customer.trim() });
+      setLines([blankLine]);
+      setAsk(null);
       onSaved();
     } catch (e) {
       toast.error(errMsg(e));
@@ -229,27 +270,120 @@ function NewSaleRow({ n, customers, types, roray, remaining, lastLines, onSaved 
       setBusy(false);
     }
   }
-  const enter = (e: React.KeyboardEvent) => { if (e.key === "Enter" && f.qty && f.rate) { e.preventDefault(); save(); } };
-  return (
+  function save() {
+    if (!f.customer.trim()) return void toast.error(t("chooseCustomer"));
+    if (!ready) return void toast.error(t("incompleteLine"));
+    if (cust?.is_cash) return void setAsk({ gross, save: create });
+    create(parseWhole(f.paid) ?? 0, 0, me);
+  }
+  async function toggleFav() {
+    if (!cust) return;
+    const { error } = await supabase.from("parties").update({ is_favourite: !cust.is_favourite }).eq("id", cust.party_id!);
+    if (error) return void toast.error(error.message);
+    onSaved();
+  }
+  const enter = (e: React.KeyboardEvent) => { if (e.key === "Enter" && ready) { e.preventDefault(); save(); } };
+  const ditto = <span className="dim px-2">″</span>;
+  return (<>
+    {parsed.map((l, i) => (
+      <tr key={i} className="new no-print">
+        <td className="rn">{n + i}</td>
+        <td className="num text-xs text-muted-foreground">{i === 0 ? t("new") : ""}</td>
+        <td className="c">{i === 0 ? <input className="cell" type="date" value={date} onChange={(e) => setF({ ...f, date: e.target.value })} aria-label={t("date")} /> : ditto}</td>
+        <td className={`c ${isNew && i === 0 ? "warn" : ""}`}>{i === 0 ? (
+          <div className="flex items-center">
+            <input className="cell min-w-0 flex-1" list="sale-customers" placeholder={t("typeCustomer")} value={f.customer} onChange={(e) => setF({ ...f, customer: e.target.value })} onKeyDown={enter}
+              aria-label={t("customer")} title={isNew ? t("newCustomerWillBeAdded") : undefined} />
+            {cust && !cust.is_cash && <button type="button" className={`px-1 text-base ${cust.is_favourite ? "text-warning" : "text-muted-foreground"}`} onClick={toggleFav}
+              aria-label={cust.is_favourite ? t("unmarkFavourite") : t("markFavourite")} title={cust.is_favourite ? t("unmarkFavourite") : t("markFavourite")}>{cust.is_favourite ? "★" : "☆"}</button>}
+            {isNew && <span className="whitespace-nowrap px-1 text-[10px] font-semibold text-primary">{t("new")}</span>}
+          </div>) : ditto}</td>
+        <td className="c"><select className="cell" value={l.type} onChange={(e) => setLine(i, { type: e.target.value })} aria-label={t("brickType")}>
+          <option value="">{t("brickType")}…</option><TypeOptions types={types} roray={roray} left={remaining} />
+        </select></td>
+        <td className={`c ${l.over ? "warn" : ""}`}><input ref={i === 0 ? qtyRef : undefined} className={`cell n num ${l.over ? "bad" : ""}`} inputMode="numeric" placeholder={l.load ? t("loads") : "0"} value={l.qty}
+          onChange={(e) => setLine(i, { qty: e.target.value })} onKeyDown={enter} aria-label={t("quantityCol")}
+          title={l.over ? `${t("stockOverWarn")}: ${t("available")} ${fmt(remaining(l.type))}` : undefined} /></td>
+        <td className="c"><input className="cell n num" inputMode="numeric" placeholder={l.load ? t("perLoad") : t("rateLater")} value={l.rate} onChange={(e) => setLine(i, { rate: e.target.value })} onKeyDown={enter} aria-label={t("rateCol")} /></td>
+        <td className="n num font-semibold">{l.q > 0 ? (l.r > 0 ? fmt(l.amount) : <span className="text-[11px] font-normal text-muted-foreground">{t("rateLater")}</span>) : ""}</td>
+        {i === 0 ? (<>
+          <td className="c">{cust?.is_cash ? <span className="px-2 text-[11px] text-muted-foreground">{t("asksOnSave")}</span> : <input className="cell n num" inputMode="numeric" placeholder="0" value={f.paid} onChange={(e) => setF({ ...f, paid: e.target.value })} onKeyDown={enter} aria-label={t("paidAtSale")} />}</td>
+          <td className="c"><input className="cell" placeholder="—" value={f.vehicle} onChange={(e) => setF({ ...f, vehicle: e.target.value })} onKeyDown={enter} aria-label={t("vehicle")} /></td>
+          <td className="c"><input className="cell" placeholder="—" value={f.driver} onChange={(e) => setF({ ...f, driver: e.target.value })} onKeyDown={enter} aria-label={t("driver")} /></td>
+          <td className="c"><input className="cell" placeholder={t("note")} value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} onKeyDown={enter} /></td>
+          <td className="px-1"><Button size="sm" className="h-7" disabled={busy || !ready} onClick={save}>{t("add")}</Button></td>
+        </>) : (<>
+          <td colSpan={4} />
+          <td className="px-1"><Button size="sm" variant="outline" className="h-7" onClick={() => setLines((ls) => ls.filter((_, j) => j !== i))} aria-label={t("remove")}>×</Button></td>
+        </>)}
+      </tr>
+    ))}
     <tr className="new no-print">
-      <td className="rn">{n}</td>
-      <td className="num text-xs text-muted-foreground">{t("new")}</td>
-      <td className="c"><input className="cell" type="date" value={date} onChange={(e) => setF({ ...f, date: e.target.value })} /></td>
-      <td className="c"><select className="cell" value={f.customer} onChange={(e) => setF({ ...f, customer: e.target.value })} aria-label={t("customer")}>
-        <option value="">{t("chooseCustomer")}</option>{customers.filter((c) => c.is_active).map((c) => <option key={c.party_id} value={c.party_id!}>{c.name}</option>)}
-      </select></td>
-      <td className="c"><select className="cell" value={f.type} onChange={(e) => pickType(e.target.value)} aria-label={t("brickType")}>
-        <option value="">{t("brickType")}…</option><TypeOptions types={types} roray={roray} left={remaining} />
-      </select></td>
-      <td className={`c ${tooMuch ? "warn" : ""}`}><input className={`cell n num ${tooMuch ? "bad" : ""}`} inputMode="numeric" placeholder={byLoad ? t("loads") : "0"} value={f.qty} onChange={(e) => setF({ ...f, qty: e.target.value })} onKeyDown={enter} aria-label={t("quantityCol")} title={tooMuch ? `${t("notEnoughStock")}: ${t("available")} ${fmt(left)}` : undefined} /></td>
-      <td className="c"><input className="cell n num" inputMode="numeric" placeholder={byLoad ? t("perLoad") : "0"} value={f.rate} onChange={(e) => setF({ ...f, rate: e.target.value })} onKeyDown={enter} aria-label={t("rateCol")} /></td>
-      <td className="n num font-semibold">{qty > 0 && rate > 0 ? fmt(lineAmount(qty, rate, byLoad ? "load" : "thousand")) : ""}</td>
-      <td className="c">{cust?.is_cash ? <span className="px-2 text-[11px] text-success">{t("paidAuto")}</span> : <input className="cell n num" inputMode="numeric" placeholder="0" value={f.paid} onChange={(e) => setF({ ...f, paid: e.target.value })} onKeyDown={enter} aria-label={t("paidAtSale")} />}</td>
-      <td className="c"><input className="cell" placeholder="—" value={f.vehicle} onChange={(e) => setF({ ...f, vehicle: e.target.value })} onKeyDown={enter} /></td>
-      <td className="c"><input className="cell" placeholder="—" value={f.driver} onChange={(e) => setF({ ...f, driver: e.target.value })} onKeyDown={enter} /></td>
-      <td className="c"><input className="cell" placeholder={t("note")} value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} onKeyDown={enter} /></td>
-      <td className="px-1"><Button size="sm" className="h-7" disabled={busy || !f.qty || !f.rate || tooMuch} onClick={save}>{t("add")}</Button></td>
+      <td className="rn" />
+      <td colSpan={12} className="px-2 py-0.5 text-xs">
+        <button type="button" className="text-primary hover:underline" onClick={() => setLines((ls) => [...ls, blankLine])}>+ {t("addAnotherType")}</button>
+        {filled.length > 1 && <span className="num ms-3 text-muted-foreground">{t("total")}: Rs {fmt(gross)}</span>}
+      </td>
     </tr>
+    {ask && <ReceivedDialog name={cust?.name ?? ""} gross={ask.gross} me={me} busy={busy} onCancel={() => setAsk(null)} onSave={ask.save} />}
+  </>);
+}
+
+/** Match a typed customer name (case and spaces ignored). */
+export function findCustomer(customers: Tables<"customer_accounts">[], typed: string) {
+  const k = typed.trim().replace(/\s+/g, " ").toLowerCase();
+  return k ? customers.find((c) => (c.name ?? "").trim().replace(/\s+/g, " ").toLowerCase() === k) : undefined;
+}
+
+/** Datalist for typing customers: favourites first. */
+export function CustomerList({ id, customers }: { id: string; customers: Tables<"customer_accounts">[] }) {
+  const { t } = useT();
+  const list = customers.filter((c) => c.is_active).sort((a, b) => Number(!!b.is_favourite) - Number(!!a.is_favourite) || Number(!!b.is_cash) - Number(!!a.is_cash) || (a.name ?? "").localeCompare(b.name ?? ""));
+  return <datalist id={id}>{list.map((c) => <option key={c.party_id} value={c.name ?? ""}>{c.is_favourite ? `★ ${t("favourite")}` : c.is_cash ? t("cash") : ""}</option>)}</datalist>;
+}
+
+/** Nakad Bikri: "this is the amount — was it received?" Full, a custom amount, or nothing; optional discount. */
+function ReceivedDialog({ name, gross, me, busy, onCancel, onSave }: {
+  name: string; gross: number; me: string; busy: boolean; onCancel: () => void; onSave: (paid: number, discount: number, handler: string) => Promise<void>;
+}) {
+  const { t } = useT();
+  const [discount, setDiscount] = useState("");
+  const [mode, setMode] = useState<"full" | "custom" | "none">("full");
+  const [custom, setCustom] = useState("");
+  const [handler, setHandler] = useState(me);
+  const d = parseWhole(discount) ?? 0;
+  const total = gross - d;
+  const paid = mode === "full" ? total : mode === "custom" ? parseWhole(custom) ?? 0 : 0;
+  const bad = d > gross && gross > 0;
+  return (
+    <Dialog open onOpenChange={(o) => !o && onCancel()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>{name} — Rs {fmt(total)}</DialogTitle>
+          <DialogDescription>{t("receivedQ")}</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <Field label={t("discount")}><NumInput value={discount} onChange={setDiscount} placeholder="0" aria-label={t("discount")} /></Field>
+          {d > 0 && <p className="num text-sm text-muted-foreground">{fmt(gross)} − {fmt(d)} = <b>{fmt(total)}</b></p>}
+          {bad && <p className="text-sm text-destructive">{t("discountTooBig")}</p>}
+          <div className="grid gap-2">
+            {([["full", `${t("receivedFull")} — Rs ${fmt(Math.max(0, total))}`], ["custom", t("receivedCustom")], ["none", t("receivedNone")]] as const).map(([k, label]) => (
+              <label key={k} className={`flex cursor-pointer items-center gap-2 rounded-md border p-2 ${mode === k ? "border-primary bg-primary/5" : ""}`}>
+                <input type="radio" name="received" checked={mode === k} onChange={() => setMode(k)} />
+                <span className="flex-1 text-sm">{label}</span>
+                {k === "custom" && mode === "custom" && <NumInput className="h-8 w-32" value={custom} onChange={setCustom} placeholder="0" autoFocus aria-label={t("receivedCustom")} />}
+              </label>
+            ))}
+          </div>
+          {paid > 0 && <Field label={t("receivedBy")}><OwnerSelect value={handler} onChange={setHandler} /></Field>}
+          {paid < total && paid >= 0 && <p className="num text-xs text-muted-foreground">{t("stillOwed")}: Rs {fmt(total - paid)}</p>}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onCancel}>{t("cancel")}</Button>
+          <Button disabled={busy || bad || (paid > 0 && !handler)} onClick={() => onSave(paid, d, handler)}>{t("saveSale")}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

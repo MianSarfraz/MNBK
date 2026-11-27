@@ -196,6 +196,18 @@ export async function addBrickType(name: string, category: BrickCategory, existi
   return error ? error.message : null;
 }
 
+/** Kacha store balance per type (bricks / 9t tiles). */
+export function useKachaStock() {
+  return useQuery({
+    queryKey: ["raw-store-stock"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("raw_store_stock").select("*");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
 export function useStock() {
   return useQuery({
     queryKey: ["finished-stock"],

@@ -88,22 +88,21 @@ export default function PaymentsRegister() {
         </thead>
         <tbody>
           {rows.map((x, i) => {
-            const auto = x.category === "cash_sale";
             return (
               <tr key={x.id} className={i > 0 && rows[i - 1]!.entry_date !== x.entry_date ? "day-start" : ""}>
                 <td className="rn">{i + 1}</td>
                 <td className="num text-xs">{paymentId(x.ref_no)}</td>
-                <td className="c"><Cell type="date" value={x.entry_date} disabled={auto} onCommit={(v) => v && update(x.id, { entry_date: v })} /></td>
+                <td className="c"><Cell type="date" value={x.entry_date} onCommit={(v) => v && update(x.id, { entry_date: v })} /></td>
                 <td className="whitespace-nowrap"><Link href={`/customers/${x.party_id}`} className="hover:underline">{custOf(x.party_id)?.name ?? "—"}</Link>
-                  {auto && <span className="ms-1 text-[10px] text-success">{t("paidAuto")}</span>}{x.direction === "out" && <span className="ms-1 text-[10px] text-destructive">{t("refund")}</span>}</td>
-                <td className="c"><Cell numeric className="font-semibold" value={String(Number(x.amount))} disabled={auto} onCommit={(v) => { const n = parseWhole(v); if (n && n > 0) update(x.id, { amount: n }); }} /></td>
-                <td className="c"><select className="cell" value={x.method} disabled={auto} onChange={(e) => update(x.id, { method: e.target.value as Method })}>
+                  {x.sale_id && <span className="ms-1 text-[10px] text-muted-foreground">{t("atSale")}</span>}{x.direction === "out" && <span className="ms-1 text-[10px] text-destructive">{t("refund")}</span>}</td>
+                <td className="c"><Cell numeric className="font-semibold" value={String(Number(x.amount))} onCommit={(v) => { const n = parseWhole(v); if (n && n > 0) update(x.id, { amount: n }); }} /></td>
+                <td className="c"><select className="cell" value={x.method} onChange={(e) => update(x.id, { method: e.target.value as Method })}>
                   {METHODS.map((m) => <option key={m} value={m}>{methodLabel(t, m)}</option>)}
                 </select></td>
-                <td className="c"><Cell value={x.reference ?? ""} placeholder="—" disabled={auto} onCommit={(v) => update(x.id, { reference: v.trim() || null })} /></td>
+                <td className="c"><Cell value={x.reference ?? ""} placeholder="—" onCommit={(v) => update(x.id, { reference: v.trim() || null })} /></td>
                 <td className="text-xs">{ownerName(x.handler_user_id)}</td>
-                <td className="c"><Cell value={x.note ?? ""} placeholder="—" disabled={auto} onCommit={(v) => update(x.id, { note: v.trim() || null })} /></td>
-                <td className="no-print px-1">{!auto && <ConfirmButton size="sm" variant="outline" onConfirm={() => update(x.id, { deleted_at: new Date().toISOString() })}>×</ConfirmButton>}</td>
+                <td className="c"><Cell value={x.note ?? ""} placeholder="—" onCommit={(v) => update(x.id, { note: v.trim() || null })} /></td>
+                <td className="no-print px-1"><ConfirmButton size="sm" variant="outline" onConfirm={() => update(x.id, { deleted_at: new Date().toISOString() })}>×</ConfirmButton></td>
               </tr>
             );
           })}
@@ -159,7 +158,7 @@ export function NewPaymentRow({ n, customers, preset, onSaved, fixedCustomer }: 
       <td className="c"><input className="cell" type="date" value={f.date || today()} onChange={(e) => setF({ ...f, date: e.target.value })} /></td>
       <td className="c">{fixedCustomer ? <span className="px-2">{acct?.name}</span> : (
         <select className="cell" value={customer} onChange={(e) => setF({ ...f, customer: e.target.value })} aria-label={t("customer")}>
-          <option value="">{t("chooseCustomer")}</option>{customers.filter((c) => c.is_active && !c.is_cash).map((c) => <option key={c.party_id} value={c.party_id!}>{c.name}</option>)}
+          <option value="">{t("chooseCustomer")}</option>{customers.filter((c) => c.is_active).sort((a, b) => Number(!!b.is_favourite) - Number(!!a.is_favourite)).map((c) => <option key={c.party_id} value={c.party_id!}>{c.name}</option>)}
         </select>)}
         {acct && <div className="px-2 pb-0.5 text-[10px] text-muted-foreground">{t("owes")} {fmt(Math.max(0, Number(acct.outstanding)))}{f.amount ? ` → ${after >= 0 ? fmt(after) : `${t("advance")} ${fmt(-after)}`}` : ""}</div>}
       </td>

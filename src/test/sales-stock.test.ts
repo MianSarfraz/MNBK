@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { amountFor, canSell, lineAmount, customerAccount, invoiceTotal, periodKey, stockRow, summarize } from "@/lib/kiln-math";
+import { amountFor, canSell, kachaStore, lineAmount, customerAccount, invoiceTotal, periodKey, stockRow, summarize } from "@/lib/kiln-math";
 
 describe("sale amounts (Quantity / 1000 × Rate)", () => {
   it("5,000 Awal at Rs 18,000 per 1,000 = Rs 90,000", () => expect(amountFor(5000, 18000)).toBe(90000));
@@ -66,5 +66,18 @@ describe("roray (broken bricks) sold by the load", () => {
   it("an invoice mixing bricks and roray counts bricks and loads separately", () => {
     expect(invoiceTotal([{ quantity: 1000, rate_per_1000: 18000 }, { quantity: 3, rate_per_1000: 1500, unit: "load" }])).toEqual(
       { gross: 22500, discount: 0, delivery: 0, total: 22500, bricks: 1000, loads: 3 });
+  });
+});
+
+describe("kacha store", () => {
+  it("stacked from patheers and outsource, minus rehra loads from the store, per type", () => {
+    const st = kachaStore(
+      [{ raw_type: "brick", source: "patheer", count: 30000 }, { raw_type: "brick", source: "outsource", count: 20000 }, { raw_type: "9t", source: "outsource", count: 5000 }, { raw_type: "brick", source: "adjust", count: -1000 }],
+      [{ raw_type: "brick", from_store: true, count: 12000 }, { raw_type: "brick", from_store: false, count: 9000 }, { raw_type: "9t", from_store: true, count: 2000 }],
+    );
+    expect(st).toEqual({ brick: { stacked: 49000, used: 12000, balance: 37000 }, "9t": { stacked: 5000, used: 2000, balance: 3000 } });
+  });
+  it("only corrections may be negative", () => {
+    expect(() => kachaStore([{ raw_type: "brick", source: "outsource", count: -5 }], [])).toThrow();
   });
 });

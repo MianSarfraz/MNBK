@@ -63,7 +63,8 @@ export default function NewSale() {
   const rorayItems = (qualities.data ?? []).filter((q) => q.kind === "sale" && q.unit === "load" && q.is_active).sort((a, b) => a.sort_order - b.sort_order);
   const qById = new Map((qualities.data ?? []).map((q) => [q.id, q]));
   const parsed = lines.map((l) => ({ ...l, q: parseWhole(l.qty) ?? 0, r: parseWhole(l.rate) ?? 0, unit: qById.get(l.quality)?.unit ?? "thousand" }));
-  const valid = parsed.filter((l) => l.quality && l.q > 0 && l.r > 0);
+  // Rate may be left blank and filled in later; quantity is needed.
+  const valid = parsed.filter((l) => l.quality && l.q > 0);
   const discount = parseWhole(h.discount) ?? 0;
   const delivery = parseWhole(h.delivery) ?? 0;
   const totals = useMemo(() => {
@@ -91,10 +92,8 @@ export default function NewSale() {
 
   const prevBalance = Number((ledgers.data ?? []).find((l) => l.party_id === h.customer)?.balance ?? 0);
   const isCash = !!(customers.data ?? []).find((c) => c.id === h.customer)?.is_cash;
-  const paidNow = isCash ? 0 : parseWhole(pay.amount) ?? 0;
-  // Nakad Bikri is paid in full automatically, so its balance does not move.
-  const cashAdj = isCash && totals.ok ? totals.total : 0;
-  const newBalance = totals.ok ? prevBalance - totals.total + paidNow + cashAdj : prevBalance;
+  const paidNow = parseWhole(pay.amount) ?? 0;
+  const newBalance = totals.ok ? prevBalance - totals.total + paidNow : prevBalance;
 
   function setLine(i: number, raw: Partial<Line>) {
     const patch = { ...raw, ...(raw.qty !== undefined ? { qty: normalizeDigits(raw.qty) } : {}), ...(raw.rate !== undefined ? { rate: normalizeDigits(raw.rate) } : {}) };
@@ -170,7 +169,7 @@ export default function NewSale() {
                   </select></td>
                   <td className="c"><input className="cell n num" inputMode="numeric" placeholder={l.unit === "load" ? t("loads") : "0"} value={l.qty} onChange={(e) => setLine(i, { qty: e.target.value })} aria-label={`${t("quantityBricks")} ${i + 1}`} /></td>
                   <td className="c"><input className="cell n num" inputMode="numeric" placeholder={l.unit === "load" ? t("perLoad") : "0"} value={l.rate} onChange={(e) => setLine(i, { rate: e.target.value })} aria-label={`${t("rate")} ${i + 1}`} /></td>
-                  <td className="n num font-semibold">{l.q > 0 && l.r > 0 ? fmt(lineAmount(l.q, l.r, l.unit)) : ""}</td>
+                  <td className="n num font-semibold">{l.q > 0 ? (l.r > 0 ? fmt(lineAmount(l.q, l.r, l.unit)) : <span className="text-[11px] font-normal text-muted-foreground">{t("rateLater")}</span>) : ""}</td>
                   <td className="px-1">{!(blank && last) && <Button variant="outline" size="sm" className="h-7" onClick={() => setLines(lines.filter((_, j) => j !== i))}>×</Button>}</td>
                 </tr>
               );
@@ -204,7 +203,8 @@ export default function NewSale() {
             </>) : <div className="text-destructive">{totals.error}</div>}
           </div>
         </div>
-        {isCash ? <div className="mt-4 rounded-md border border-success/40 bg-success/10 p-2 text-sm text-success">{t("cashCustomerHelp")}</div> : (
+        {isCash && <div className="mt-4 rounded-md border border-warning bg-warning/10 p-2 text-sm">{t("receivedQ")} — {t("cashCustomerHelp")}</div>}
+        {(
         <div className="mt-4 grid gap-3 border-t pt-4 md:grid-cols-4">
           <Field label={t("receivedNow")}><NumInput value={pay.amount} onChange={(v) => setPay({ ...pay, amount: v })} placeholder="0" /></Field>
           <Field label={t("method")}><MethodSelect value={pay.method} onChange={(v) => setPay({ ...pay, method: v })} /></Field>
@@ -215,7 +215,7 @@ export default function NewSale() {
           <div className="mt-3 text-lg">{t("balanceAfter")}: <span className="num font-bold">{fmt(Math.abs(newBalance))}</span> <BalanceBadge balance={newBalance} kind="customer" /></div>
         )}
         <div className="mt-4">
-          <ConfirmButton size="lg" onConfirm={save} disabled={busy || !valid.length || !h.customer || warnings.length > 0}
+          <ConfirmButton size="lg" onConfirm={save} disabled={busy || !valid.length || !h.customer}
             description={`${t("invoiceTotal")}: Rs ${fmt(totals.ok ? totals.total : 0)}${warnings.length ? ` — ⚠ ${t("stockWarning")}` : ""}`}>
             {t("saveInvoice")}
           </ConfirmButton>

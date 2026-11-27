@@ -7,8 +7,9 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import { fmt, fmtDate, useT } from "@/lib/i18n";
-import { amountAtRates, parseWhole, type Rate } from "@/lib/kiln-math";
-import { errMsg, myId, today, useParties, useQualities, useRates } from "@/lib/data";
+import { amountAtRates, parseWhole, type Rate, type RawType } from "@/lib/kiln-math";
+import { errMsg, myId, today, useKachaStock, useParties, useQualities, useRates } from "@/lib/data";
+import { KachaStore, RAW_TYPES } from "@/components/KachaStore";
 import { Button } from "@/components/ui/button";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { KharchaSheet } from "@/components/KharchaSheet";
@@ -64,18 +65,22 @@ export function KilnWeek({ stage }: { stage: Stage }) {
     qc.invalidateQueries({ queryKey: ["ledgers"] });
   };
 
-  async function insertEntry(p: { party_id: string; count: number; quality_id: string | null; source_party_id?: string | null; entry_date: string; notes?: string | null }) {
+  async function insertEntry(p: { party_id: string; count: number; quality_id: string | null; source_party_id?: string | null; entry_date: string; notes?: string | null; raw_type?: RawType; from_store?: boolean }) {
     // Week and season are filled in by the database from the date.
     const { error } = await supabase.from("kiln_entries").insert({ stage, created_by: await myId(), ...p });
     if (error) { toast.error(error.message); return false; }
     refresh();
     return true;
   }
-  async function updateEntry(id: string, patch: Partial<Pick<Entry, "count" | "deleted_at" | "entry_date" | "quality_id" | "source_party_id" | "notes">>) {
+  async function updateEntry(id: string, patch: Partial<Pick<Entry, "count" | "deleted_at" | "entry_date" | "quality_id" | "source_party_id" | "notes" | "raw_type" | "from_store">>) {
     const { error } = await supabase.from("kiln_entries").update(patch).eq("id", id);
     if (error) toast.error(error.message);
     refresh();
+    qc.invalidateQueries({ queryKey: ["raw-store-stock"] });
   }
+  /** Rehra "From" cell: "store" = kacha store, otherwise a patheer id (or blank). */
+  const fromValue = (e: Entry) => (e.from_store ? "store" : e.source_party_id ?? "");
+  const fromPatch = (v: string) => (v === "store" ? { from_store: true, source_party_id: null } : { from_store: false, source_party_id: v || null });
   /** Nakasi grid cell: one entry per worker × quality per week (blank or 0 voids it). */
   async function setCell(pid: string, qid: string, raw: string, existing: Entry[]) {
     const v = parseWhole(raw) ?? 0;
@@ -111,6 +116,12 @@ export function KilnWeek({ stage }: { stage: Stage }) {
   const weekBricks = totals.reduce((s, r) => s + r.bricks, 0);
   const weekEarn = totals.reduce((s, r) => s + r.earn, 0);
   const made = (madeQ.data ?? []).reduce((s, e) => s + Number(e.confirmed_count ?? 0), 0);
+  const sumBy = (f: (e: Entry) => boolean) => entries.filter(f).reduce((s, e) => s + Number(e.count), 0);
+  const loadedBricks = sumBy((e) => e.raw_type !== "9t");
+  const loaded9t = sumBy((e) => e.raw_type === "9t");
+  const loadedStore = sumBy((e) => e.from_store);
+  const kacha = useKachaStock();
+  const storeLeft = (rt: RawType) => Number((kacha.data ?? []).find((k) => k.raw_type === rt)?.balance ?? 0);
 
 
   const activeWorkers = rows.filter((w) => w.is_active);
@@ -127,10 +138,13 @@ export function KilnWeek({ stage }: { stage: Stage }) {
       <WeekPicker nav={nav} />
 
       <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-        <Stat label={t(stage === "rehra" ? "loadedThisWeek" : "bakedThisWeek")} value={weekBricks} />
+        {stage === "rehra" ? (<>
+          <Stat label={t("bricksLoaded")} value={loadedBricks} sub={loaded9t ? `+ ${fmt(loaded9t)} ${t("raw9t")}` : undefined} />
+          <Stat label={t("tilesLoaded")} value={loaded9t} />
+          <Stat label={t("loadedFromStore")} value={loadedStore} sub={`${fmt(weekBricks - loadedStore)} ${t("freshLoaded").toLowerCase()}`} />
+          <Stat label={t("madeMinusLoaded")} value={made - (weekBricks - loadedStore)} sub={`${fmt(made)} ${t("madeThisWeek").toLowerCase()}`} tone={made - (weekBricks - loadedStore) < 0 ? "bad" : undefined} />
+        </>) : <Stat label={t("bakedThisWeek")} value={weekBricks} />}
         <Stat label={t("earnings")} value={weekEarn} money />
-        {stage === "rehra" && <Stat label={t("madeThisWeek")} value={made} />}
-        {stage === "rehra" && <Stat label={t("madeMinusLoaded")} value={made - weekBricks} tone={made - weekBricks < 0 ? "bad" : undefined} />}
       </div>
 
       {!rows.length && <Empty>{t("addWorkersFirst")} — <Link href={`/people/${stage}`} className="text-primary underline">{t(stage)}</Link></Empty>}
@@ -187,7 +201,7 @@ export function KilnWeek({ stage }: { stage: Stage }) {
               <LetterRow cols={entryCols} />
               <tr>
                 <th className="rn">#</th><th className="w-36">{t("date")}</th><th>{t(stage)}</th>
-                <th>{t("quality")}</th>{stage === "rehra" && <th>{t("sourcePatheer")}</th>}
+                {stage === "rehra" ? <><th className="w-28">{t("rawType")}</th><th>{t("fromCol")}</th></> : <th>{t("quality")}</th>}
                 <th className="n w-28">{t("bricksCol")}</th><th>{t("note")}</th><th className="w-10" />
               </tr>
             </thead>
@@ -198,16 +212,19 @@ export function KilnWeek({ stage }: { stage: Stage }) {
                   <td className="c"><Cell type="date" value={e.entry_date} disabled={readOnly} dim={i > 0 && sorted[i - 1]!.entry_date === e.entry_date}
                     onCommit={(v) => { if (v) { updateEntry(e.id, { entry_date: v }); if (v < start || v > end) nav.go(v); } }} /></td>
                   <td className="whitespace-nowrap">{pName(e.party_id)}</td>
-                  <td className="c">
-                    <select className="cell" value={e.quality_id ?? ""} disabled={readOnly} onChange={(ev) => updateEntry(e.id, { quality_id: ev.target.value || null })}>
-                      {stage === "rehra" && <option value="">—</option>}
-                      {qualityOpts.map((q) => <option key={q.id} value={q.id}>{q.name_en}</option>)}
-                    </select>
-                  </td>
-                  {stage === "rehra" && (
+                  {stage === "rehra" ? (<>
                     <td className="c">
-                      <select className="cell" value={e.source_party_id ?? ""} disabled={readOnly} onChange={(ev) => updateEntry(e.id, { source_party_id: ev.target.value || null })}>
-                        <option value="">—</option>{patheerOpts.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                      <select className="cell" value={e.raw_type} disabled={readOnly} onChange={(ev) => updateEntry(e.id, { raw_type: ev.target.value })} aria-label={t("rawType")}>
+                        {RAW_TYPES.map(({ v, k }) => <option key={v} value={v}>{t(k)}</option>)}
+                      </select>
+                    </td>
+                    <td className="c">
+                      <FromSelect value={fromValue(e)} patheers={patheerOpts} extra={e.source_party_id} pName={pName} disabled={readOnly} onChange={(v) => updateEntry(e.id, fromPatch(v))} />
+                    </td>
+                  </>) : (
+                    <td className="c">
+                      <select className="cell" value={e.quality_id ?? ""} disabled={readOnly} onChange={(ev) => updateEntry(e.id, { quality_id: ev.target.value || null })}>
+                        {qualityOpts.map((q) => <option key={q.id} value={q.id}>{q.name_en}</option>)}
                       </select>
                     </td>
                   )}
@@ -218,39 +235,63 @@ export function KilnWeek({ stage }: { stage: Stage }) {
                 </tr>
               ))}
               {!readOnly && (
-                <KilnNewRow stage={stage} n={sorted.length + 1} workers={activeWorkers} qualities={qualityOpts} patheers={patheerOpts} defaultDate={sorted.at(-1)?.entry_date ?? defaultDate}
+                <KilnNewRow stage={stage} n={sorted.length + 1} workers={activeWorkers} qualities={qualityOpts} patheers={patheerOpts} defaultDate={sorted.at(-1)?.entry_date ?? defaultDate} storeLeft={storeLeft}
                   onAdd={async (p) => { const ok = await insertEntry(p); if (ok && (p.entry_date < start || p.entry_date > end)) { nav.go(p.entry_date); toast.success(`${t("saved")} — ${fmtDate(p.entry_date)}`); } return ok; }} />
               )}
               <tr className="total">
                 <td className="rn" /><td colSpan={stage === "rehra" ? 4 : 3}>{t("total")}</td>
-                <td className="n num">{fmt(weekBricks)}</td><td colSpan={2} />
+                <td className="n num">{stage === "rehra" ? <>{fmt(loadedBricks)}{loaded9t ? <div className="text-[11px] font-normal">+ {fmt(loaded9t)} {t("raw9t")}</div> : null}</> : fmt(weekBricks)}</td><td colSpan={2} />
               </tr>
             </tbody>
           </Sheet>
         </div>
       )}
 
+      {stage === "rehra" && <KachaStore start={start} end={end} readOnly={readOnly} patheers={patheers.data ?? []} defaultDate={defaultDate} />}
+
       <KharchaSheet rows={kharchaRows} readOnly={readOnly} onGive={giveKharcha} />
     </div>
   );
 }
 
-type NewKiln = { party_id: string; count: number; quality_id: string | null; source_party_id: string | null; entry_date: string; notes: string | null };
+type NewKiln = { party_id: string; count: number; quality_id: string | null; source_party_id: string | null; entry_date: string; notes: string | null; raw_type?: RawType; from_store?: boolean };
 
-/** Blank row at the bottom of the entries sheet: any worker, any date. */
-function KilnNewRow({ stage, n, workers, qualities, patheers, defaultDate, onAdd }: {
-  stage: "rehra" | "nakasi"; n: number; workers: Tables<"parties">[]; qualities: Tables<"qualities">[]; patheers: Tables<"parties">[];
-  defaultDate: string; onAdd: (p: NewKiln) => Promise<boolean>;
+/** Rehra "From": a patheer (fresh dry bricks) or the kacha store. */
+function FromSelect({ value, patheers, extra, pName, disabled, onChange }: {
+  value: string; patheers: Tables<"parties">[]; extra?: string | null; pName: (id: string | null) => string; disabled?: boolean; onChange: (v: string) => void;
 }) {
   const { t } = useT();
-  const [f, setF] = useState({ date: "", party: "", quality: "", source: "", count: "", note: "" });
+  return (
+    <select className="cell" value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)} aria-label={t("fromCol")}>
+      <option value="">—</option>
+      <option value="store">📦 {t("fromStore")}</option>
+      <optgroup label={t("srcPatheer")}>
+        {extra && !patheers.some((p) => p.id === extra) && <option value={extra}>{pName(extra)}</option>}
+        {patheers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+      </optgroup>
+    </select>
+  );
+}
+
+/** Blank row at the bottom of the entries sheet: any worker, any date. */
+function KilnNewRow({ stage, n, workers, qualities, patheers, defaultDate, storeLeft, onAdd }: {
+  stage: "rehra" | "nakasi"; n: number; workers: Tables<"parties">[]; qualities: Tables<"qualities">[]; patheers: Tables<"parties">[];
+  defaultDate: string; storeLeft: (rt: RawType) => number; onAdd: (p: NewKiln) => Promise<boolean>;
+}) {
+  const { t } = useT();
+  const [f, setF] = useState({ date: "", party: "", quality: "", source: "", count: "", note: "", rawType: "brick" as RawType });
+  const qty = parseWhole(f.count) ?? 0;
+  const overStore = stage === "rehra" && f.source === "store" && qty > storeLeft(f.rawType);
   const date = f.date || defaultDate;
   const quality = f.quality || (stage === "nakasi" ? qualities[0]?.id ?? "" : "");
   async function save() {
     const count = parseWhole(f.count);
     if (!f.party) return void toast.error(t("chooseWorker"));
     if (!count || count <= 0) return void toast.error(t("wholeNumbers"));
-    if (await onAdd({ party_id: f.party, count, quality_id: quality || null, source_party_id: f.source || null, entry_date: date, notes: f.note.trim() || null })) {
+    const rehra = stage === "rehra"
+      ? { raw_type: f.rawType, from_store: f.source === "store", source_party_id: f.source && f.source !== "store" ? f.source : null, quality_id: null }
+      : { source_party_id: null, quality_id: quality || null };
+    if (await onAdd({ party_id: f.party, count, entry_date: date, notes: f.note.trim() || null, ...rehra })) {
       setF({ ...f, count: "", note: "" });
     }
   }
@@ -262,13 +303,18 @@ function KilnNewRow({ stage, n, workers, qualities, patheers, defaultDate, onAdd
       <td className="c"><select className="cell" value={f.party} onChange={(e) => setF({ ...f, party: e.target.value })} aria-label={t(stage)}>
         <option value="">{t("chooseWorker")}</option>{workers.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
       </select></td>
-      <td className="c"><select className="cell" value={quality} onChange={(e) => setF({ ...f, quality: e.target.value })}>
-        {stage === "rehra" && <option value="">—</option>}{qualities.map((q) => <option key={q.id} value={q.id}>{q.name_en}</option>)}
-      </select></td>
-      {stage === "rehra" && <td className="c"><select className="cell" value={f.source} onChange={(e) => setF({ ...f, source: e.target.value })}>
-        <option value="">—</option>{patheers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-      </select></td>}
-      <td className="c"><input className="cell n num" inputMode="numeric" placeholder="0" value={f.count} onChange={(e) => setF({ ...f, count: e.target.value })} onKeyDown={enter} aria-label={t("bricks")} /></td>
+      {stage === "rehra" ? (<>
+        <td className="c"><select className="cell" value={f.rawType} onChange={(e) => setF({ ...f, rawType: e.target.value as RawType })} aria-label={t("rawType")}>
+          {RAW_TYPES.map(({ v, k }) => <option key={v} value={v}>{t(k)}</option>)}
+        </select></td>
+        <td className="c"><FromSelect value={f.source} patheers={patheers} pName={() => "—"} onChange={(v) => setF({ ...f, source: v })} /></td>
+      </>) : (
+        <td className="c"><select className="cell" value={quality} onChange={(e) => setF({ ...f, quality: e.target.value })}>
+          {qualities.map((q) => <option key={q.id} value={q.id}>{q.name_en}</option>)}
+        </select></td>
+      )}
+      <td className={`c ${overStore ? "warn" : ""}`}><input className={`cell n num ${overStore ? "bad" : ""}`} inputMode="numeric" placeholder="0" value={f.count} onChange={(e) => setF({ ...f, count: e.target.value })} onKeyDown={enter} aria-label={t("bricks")}
+        title={overStore ? `${t("moreThanInStore")}: ${fmt(storeLeft(f.rawType))}` : undefined} /></td>
       <td className="c"><input className="cell" placeholder={t("note")} value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} onKeyDown={enter} /></td>
       <td className="px-1"><Button size="sm" className="h-7" disabled={!f.count || !f.party} onClick={save}>{t("add")}</Button></td>
     </tr>

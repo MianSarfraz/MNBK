@@ -19,6 +19,10 @@ Stack: Next.js 15 (App Router, React 19, TypeScript), Supabase (Postgres + auth 
 | `/sales-reports` | Sales by day / week / month / year, by customer and type; production by firing; customer balances. |
 
 Brick types (each with its own stock): Awal, Awal Barshi, Special, Awal Machine, Doum, Tirak, 9t Awal, 9t Doum, 9t Tirak. Roray (broken bricks — Trali Roray, Rehra Roray, Rehra 9T Roray) are sale-only, priced per trolley/rehra load, and never counted in stock.
+
+Sales are typed like a sheet: type the customer's name (a new name adds the customer; ★ favourites are quick picks), one or more brick types per sale, rate optional (fill in later). Selling more than the stock warns but never blocks. Nakad Bikri asks on save how much was received (full, a custom amount, or nothing) and allows a discount — no hidden automatic receipts.
+
+Rehra loads record what was carried (bricks or 9t tiles) and where from: a patheer, or the kacha store. The kacha store holds dry bricks stacked for later — from patheers, from an outsource supplier (count only, payment not tracked), an opening count, or a correction.
 (remaining = opening + production − sold ± adjustments).
 
 **Kiln work, money & settings (secondary):** `/weekly` (patheer), `/rehra`, `/nakasi`, `/people/[kind]`, `/party/[id]`,

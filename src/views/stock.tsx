@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { AddBrickType } from "@/components/AddBrickType";
+import { KachaStoreCards } from "@/components/KachaStore";
 import { DateInput, Empty, Field, NumInput, PageHeader, PrintHeader, Section, Select, Stat } from "@/components/kit";
 
 const CAT: Record<string, Key> = { normal: "catNormal", nine_t: "cat9t", special: "catSpecial", other: "catOther" };
@@ -51,8 +52,8 @@ export default function StockPage() {
         if (season) q = q.gte("entry_date", season.start_date).lte("entry_date", season.end_date);
         return q.order("id").range(a, b);
       });
-      const loaded = await fetchAll<{ source_party_id: string | null; count: number; entry_date: string }>((a, b) => {
-        let q = supabase.from("kiln_entries").select("source_party_id, count, entry_date").eq("stage", "rehra").is("deleted_at", null);
+      const loaded = await fetchAll<{ source_party_id: string | null; count: number; entry_date: string; from_store: boolean }>((a, b) => {
+        let q = supabase.from("kiln_entries").select("source_party_id, count, entry_date, from_store").eq("stage", "rehra").is("deleted_at", null);
         if (season) q = q.gte("entry_date", season.start_date).lte("entry_date", season.end_date);
         return q.order("id").range(a, b);
       });
@@ -69,7 +70,8 @@ export default function StockPage() {
     made: (raw.data?.made ?? []).filter((e) => e.party_id === p.id).reduce((s, e) => s + Number(e.confirmed_count ?? 0), 0),
     loaded: (raw.data?.loaded ?? []).filter((e) => e.source_party_id === p.id).reduce((s, e) => s + Number(e.count), 0),
   })).filter((r) => r.made || r.loaded);
-  const unattributed = (raw.data?.loaded ?? []).filter((e) => !e.source_party_id).reduce((s, e) => s + Number(e.count), 0);
+  const unattributed = (raw.data?.loaded ?? []).filter((e) => !e.source_party_id && !e.from_store).reduce((s, e) => s + Number(e.count), 0);
+  const fromStore = (raw.data?.loaded ?? []).filter((e) => e.from_store).reduce((s, e) => s + Number(e.count), 0);
 
   const finRows = fin.data ?? [];
   const typeRows = finRows.filter((r) => r.is_active || Number(r.opening) || Number(r.produced) || Number(r.sold)).sort((x, y) => Number(x.sort_order) - Number(y.sort_order));
@@ -153,6 +155,11 @@ export default function StockPage() {
           <Stat label={t("loadedInKiln")} value={rs.loaded} />
           <Stat label={t("adjusted")} value={rs.adjusted} />
           <Stat label={t("rawAtYard")} value={rs.balance} tone={rs.balance < 0 ? "bad" : undefined} />
+        </div>
+        <div className="mt-3 space-y-1">
+          <div className="text-sm font-semibold">{t("kachaStore")} <Link href="/rehra" className="ms-2 text-xs font-normal text-primary underline">{t("rehraKhatta")}</Link></div>
+          <KachaStoreCards />
+          {fromStore > 0 && <p className="num text-xs text-muted-foreground">{t("loadedFromStore")}: {fmt(fromStore)}</p>}
         </div>
         {byPatheer.length > 0 && (
           <div className="mt-4 overflow-x-auto">

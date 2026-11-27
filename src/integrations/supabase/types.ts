@@ -96,6 +96,7 @@ export type Database = {
           deleted_at: string | null
           id: string
           is_active: boolean
+          is_favourite: boolean
           kind: Database["public"]["Enums"]["party_kind"]
           name: string
           opening_balance: number
@@ -116,6 +117,7 @@ export type Database = {
           deleted_at?: string | null
           id?: string
           is_active?: boolean
+          is_favourite?: boolean
           kind: Database["public"]["Enums"]["party_kind"]
           name: string
           opening_balance?: number
@@ -136,6 +138,7 @@ export type Database = {
           deleted_at?: string | null
           id?: string
           is_active?: boolean
+          is_favourite?: boolean
           kind?: Database["public"]["Enums"]["party_kind"]
           name?: string
           opening_balance?: number
@@ -604,6 +607,8 @@ export type Database = {
           notes: string | null
           party_id: string | null
           quality_id: string | null
+          from_store: boolean
+          raw_type: string
           season_id: string
           source_party_id: string | null
           stage: Database["public"]["Enums"]["kiln_stage"]
@@ -622,6 +627,8 @@ export type Database = {
           notes?: string | null
           party_id?: string | null
           quality_id?: string | null
+          from_store?: boolean
+          raw_type?: string
           season_id?: string
           source_party_id?: string | null
           stage: Database["public"]["Enums"]["kiln_stage"]
@@ -640,12 +647,65 @@ export type Database = {
           notes?: string | null
           party_id?: string | null
           quality_id?: string | null
+          from_store?: boolean
+          raw_type?: string
           season_id?: string
           source_party_id?: string | null
           stage?: Database["public"]["Enums"]["kiln_stage"]
           updated_at?: string
           updated_by?: string | null
           week_id?: string
+        }
+        Relationships: []
+      }
+      raw_store: {
+        Row: {
+          id: string
+          entry_date: string
+          season_id: string | null
+          raw_type: string
+          source: string
+          patheer_id: string | null
+          supplier: string | null
+          count: number
+          notes: string | null
+          created_by: string
+          updated_by: string | null
+          created_at: string
+          updated_at: string
+          deleted_at: string | null
+        }
+        Insert: {
+          id?: string
+          entry_date: string
+          season_id?: string | null
+          raw_type?: string
+          source: string
+          patheer_id?: string | null
+          supplier?: string | null
+          count: number
+          notes?: string | null
+          created_by?: string
+          updated_by?: string | null
+          created_at?: string
+          updated_at?: string
+          deleted_at?: string | null
+        }
+        Update: {
+          id?: string
+          entry_date?: string
+          season_id?: string | null
+          raw_type?: string
+          source?: string
+          patheer_id?: string | null
+          supplier?: string | null
+          count?: number
+          notes?: string | null
+          created_by?: string
+          updated_by?: string | null
+          created_at?: string
+          updated_at?: string
+          deleted_at?: string | null
         }
         Relationships: []
       }
@@ -842,6 +902,7 @@ export type Database = {
           is_active: boolean | null
           is_cash: boolean | null
           last_sale: string | null
+          is_favourite: boolean | null
           name: string | null
           notes: string | null
           opening_due: number | null
@@ -898,8 +959,23 @@ export type Database = {
         Row: {
           adjusted: number | null
           balance: number | null
+          drying: number | null
+          external: number | null
           loaded: number | null
           made: number | null
+          stored: number | null
+        }
+        Relationships: []
+      }
+      raw_store_stock: {
+        Row: {
+          adjusted: number | null
+          balance: number | null
+          from_patheer: number | null
+          opening: number | null
+          outsourced: number | null
+          raw_type: string | null
+          used: number | null
         }
         Relationships: []
       }

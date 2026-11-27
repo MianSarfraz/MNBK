@@ -237,6 +237,34 @@ export function invoiceTotal(lines: SaleLine[], discount = 0, delivery = 0): Inv
   return { gross, discount, delivery, total, bricks, loads };
 }
 
+// ---------- Kacha (dry, unbaked) bricks ----------
+export type RawType = "brick" | "9t";
+export type StoreSource = "patheer" | "outsource" | "opening" | "adjust";
+
+/** Kacha store per type: stacked in (patheer / outsource / opening / correction) − loaded by rehra from the store.
+ *  Mirrors SQL view public.raw_store_stock. */
+export function kachaStore(
+  entries: { raw_type: RawType | string; source: StoreSource | string; count: number }[],
+  loads: { raw_type: RawType | string; from_store: boolean; count: number }[],
+) {
+  const out: Record<RawType, { stacked: number; used: number; balance: number }> = {
+    brick: { stacked: 0, used: 0, balance: 0 },
+    "9t": { stacked: 0, used: 0, balance: 0 },
+  };
+  for (const e of entries) {
+    if (!Number.isInteger(e.count) || e.count === 0) throw new Error("count must be a non-zero whole number");
+    if (e.count < 0 && e.source !== "adjust") throw new Error("only corrections can be negative");
+    const r = out[e.raw_type as RawType];
+    if (r) r.stacked += e.count;
+  }
+  for (const l of loads) {
+    const r = out[l.raw_type as RawType];
+    if (r && l.from_store) r.used += l.count;
+  }
+  for (const r of Object.values(out)) r.balance = r.stacked - r.used;
+  return out;
+}
+
 // ---------- Stock ----------
 /** Finished stock per stock-quality: nakasi output − sales (mapped to stock quality) + adjustments. */
 export function finishedStock(

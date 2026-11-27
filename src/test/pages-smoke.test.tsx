@@ -32,7 +32,7 @@ const DB: Record<string, Record<string, unknown>[]> = {
   production_entries: [{ ...base, id: "pe1", party_id: P1, season_id: S1, week_id: W1, entry_date: "2026-11-12", estimated_count: 50000, confirmed_count: 48500, confirmed_at: null, notes: null }],
   kiln_entries: [
     { ...base, id: "k1", stage: "nakasi", party_id: N1, season_id: S1, week_id: W1, entry_date: "2026-11-13", quality_id: QA, source_party_id: null, count: 30000, notes: null },
-    { ...base, id: "k2", stage: "rehra", party_id: R1, season_id: S1, week_id: W1, entry_date: "2026-11-13", quality_id: null, source_party_id: P1, count: 40000, notes: null },
+    { ...base, id: "k2", stage: "rehra", party_id: R1, season_id: S1, week_id: W1, entry_date: "2026-11-13", quality_id: null, source_party_id: P1, count: 40000, notes: null, raw_type: "brick", from_store: false },
   ],
   salary_months: [{ ...base, id: "sm1", party_id: E1, season_id: S1, entry_date: "2026-11-01", amount: 30000, note: null }],
   sales: [{ ...base, id: SALE, invoice_no: 1, entry_date: "2026-11-14", season_id: S1, customer_id: C1, vehicle_no: "ABC-1", driver_name: "D", discount: 0, delivery_charges: 0, note: null }],
@@ -49,11 +49,16 @@ const DB: Record<string, Record<string, unknown>[]> = {
   ],
   finished_stock: [{ quality_id: QA, name_en: "Awal", name_ur: "Awal", category: "normal", sort_order: 1, is_active: true, opening: 50000, produced: 30000, sold: 10000, adjusted: 0, balance: 70000 }],
   customer_accounts: [
-    { party_id: C1, ref_no: 1, name: "Bashir", phone: "0300", address: null, notes: null, is_cash: false, is_active: true, opening_due: 1000, bricks: 10000, purchases: 145000, sales_count: 1, payments: 100000, adjustments: 0, outstanding: 46000, last_sale: "2026-11-14" },
+    { party_id: C1, ref_no: 1, name: "Bashir", phone: "0300", address: null, notes: null, is_cash: false, is_active: true, opening_due: 1000, bricks: 10000, purchases: 145000, sales_count: 1, payments: 100000, adjustments: 0, outstanding: 46000, last_sale: "2026-11-14", is_favourite: true },
     { party_id: "cash-1", ref_no: 2, name: "Nakad Bikri", phone: null, address: null, notes: null, is_cash: true, is_active: true, opening_due: 0, bricks: 2000, purchases: 30000, sales_count: 1, payments: 30000, adjustments: 0, outstanding: 0, last_sale: "2026-11-14" },
   ],
   sale_lines: [{ item_id: "si1", sale_id: SALE, invoice_no: 1, entry_date: "2026-11-14", customer_id: C1, vehicle_no: "ABC-1", driver_name: "D", note: null, quality_id: QA, quantity: 10000, rate_per_1000: 14500, amount: 145000, season_id: S1 }],
-  raw_stock: [{ made: 48500, loaded: 40000, adjusted: 0, balance: 8500 }],
+  raw_stock: [{ made: 48500, loaded: 40000, adjusted: 0, balance: 8500, external: 0, stored: 0, drying: 8500 }],
+  raw_store: [],
+  raw_store_stock: [
+    { raw_type: "brick", from_patheer: 0, outsourced: 20000, opening: 0, adjusted: 0, used: 5000, balance: 15000 },
+    { raw_type: "9t", from_patheer: 0, outsourced: 0, opening: 0, adjusted: 0, used: 0, balance: 0 },
+  ],
   stock_adjustments: [],
   cash_counts: [],
   audit_log: [{ id: 1, table_name: "transactions", row_id: "t1", action: "UPDATE", old_values: { amount: 1 }, new_values: { amount: 2 }, changed_by: U1, changed_at: base.created_at }],
@@ -79,7 +84,7 @@ function builder(table: string) {
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
     from: (t: string) => builder(t),
-    rpc: async () => ({ data: true, error: null }),
+    rpc: async (fn: string, args: unknown) => { WRITES.push({ table: fn, op: "rpc", payload: args }); return { data: true, error: null }; },
     auth: {
       getUser: async () => ({ data: { user: { id: U1 } }, error: null }),
       onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } }),
@@ -251,23 +256,58 @@ describe("expense khatta sheet", () => {
 });
 
 describe("sales register", () => {
-  it("blocks selling more than the brick type's stock, and saves a valid sale with one line", async () => {
+  it("warns (never blocks) when selling more than the stock, and saves a typed customer's sale", async () => {
     WRITES.length = 0;
     const { spy } = await mount("/sales");
-    const selects = await screen.findAllByLabelText("Customer", {}, { timeout: 4000 });
-    // Wait for the brick types (with their stock) to load into the new row's drop-down.
+    await screen.findAllByLabelText("Customer", {}, { timeout: 4000 });
     await waitFor(() => expect((screen.getAllByLabelText("Brick type").at(-1) as HTMLSelectElement).innerHTML).toContain("Awal (70,000)"), { timeout: 4000 });
-    fireEvent.change(selects.at(-1)!, { target: { value: C1 } });
+    fireEvent.change(screen.getAllByLabelText("Customer").at(-1)!, { target: { value: "bashir" } });
     fireEvent.change(screen.getAllByLabelText("Brick type").at(-1)!, { target: { value: QA } });
     const qty = screen.getAllByLabelText("Quantity").at(-1)!;
     fireEvent.change(qty, { target: { value: "70001" } }); // stock is 70,000
-    fireEvent.change(screen.getAllByLabelText("Rate (/1000 or /load)").at(-1)!, { target: { value: "18000" } });
     const add = screen.getAllByText("Add").at(-1)!;
-    expect(add).toBeDisabled();
-    expect(qty).toHaveAttribute("title", expect.stringMatching(/Not enough stock.*70,000/));
+    expect(qty).toHaveAttribute("title", expect.stringMatching(/more than in stock.*70,000/i));
+    expect(add).not.toBeDisabled(); // rate left blank is fine too
     fireEvent.change(qty, { target: { value: "5000" } });
+    fireEvent.change(screen.getAllByLabelText("Rate (/1000 or /load)").at(-1)!, { target: { value: "18000" } });
     expect(screen.getAllByText("90,000").length).toBeGreaterThan(0); // 5,000 × 18,000 / 1,000
-    expect(add).not.toBeDisabled();
+    fireEvent.click(add);
+    await waitFor(() => expect(WRITES.some((w) => w.table === "create_sale")).toBe(true), { timeout: 4000 });
+    expect(WRITES.find((w) => w.table === "create_sale")!.payload).toMatchObject({ _customer_id: C1, _items: [{ quality_id: QA, quantity: 5000, rate_per_1000: 18000 }] });
+    expect(WRITES.some((w) => w.table === "parties")).toBe(false); // existing customer, nothing added
+    spy.mockRestore();
+  });
+  it("a new name typed as customer is added as a customer; favourites show as quick picks", async () => {
+    WRITES.length = 0;
+    const { spy } = await mount("/sales");
+    await screen.findAllByLabelText("Customer", {}, { timeout: 4000 });
+    expect(await screen.findByRole("button", { name: "Bashir" })).toBeInTheDocument();
+    fireEvent.change(screen.getAllByLabelText("Customer").at(-1)!, { target: { value: "Haji Aslam" } });
+    expect(screen.getAllByLabelText("Customer").at(-1)!).toHaveAttribute("title", expect.stringMatching(/New customer/));
+    await waitFor(() => expect((screen.getAllByLabelText("Brick type").at(-1) as HTMLSelectElement).innerHTML).toContain("Awal"), { timeout: 4000 });
+    fireEvent.change(screen.getAllByLabelText("Brick type").at(-1)!, { target: { value: QA } });
+    fireEvent.change(screen.getAllByLabelText("Quantity").at(-1)!, { target: { value: "1000" } });
+    fireEvent.click(screen.getAllByText("Add").at(-1)!);
+    await waitFor(() => expect(WRITES.some((w) => w.table === "parties" && w.op === "insert")).toBe(true), { timeout: 4000 });
+    expect(WRITES.find((w) => w.table === "parties")!.payload).toMatchObject({ kind: "customer", name: "Haji Aslam" });
+    spy.mockRestore();
+  });
+  it("Nakad Bikri asks how much was received, with a discount", async () => {
+    WRITES.length = 0;
+    const { spy } = await mount("/sales");
+    await screen.findAllByLabelText("Customer", {}, { timeout: 4000 });
+    await waitFor(() => expect((screen.getAllByLabelText("Brick type").at(-1) as HTMLSelectElement).innerHTML).toContain("Awal"), { timeout: 4000 });
+    fireEvent.change(screen.getAllByLabelText("Customer").at(-1)!, { target: { value: "Nakad Bikri" } });
+    fireEvent.change(screen.getAllByLabelText("Brick type").at(-1)!, { target: { value: QA } });
+    fireEvent.change(screen.getAllByLabelText("Quantity").at(-1)!, { target: { value: "1000" } });
+    fireEvent.change(screen.getAllByLabelText("Rate (/1000 or /load)").at(-1)!, { target: { value: "18000" } });
+    fireEvent.click(screen.getAllByText("Add").at(-1)!);
+    expect(await screen.findByText("This is the amount. Was it received?")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Discount"), { target: { value: "500" } });
+    expect(screen.getByText(/Received in full — Rs 17,500/)).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Save sale"));
+    await waitFor(() => expect(WRITES.some((w) => w.table === "create_sale")).toBe(true), { timeout: 4000 });
+    expect(WRITES.find((w) => w.table === "create_sale")!.payload).toMatchObject({ _customer_id: "cash-1", _discount: 500, _paid: 17500 });
     spy.mockRestore();
   });
   it("roray are listed apart from brick types, priced per load, with no stock limit", async () => {
@@ -282,6 +322,34 @@ describe("sales register", () => {
     fireEvent.change(screen.getAllByLabelText("Rate (/1000 or /load)").at(-1)!, { target: { value: "6500" } });
     expect(screen.getAllByText("19,500").length).toBeGreaterThan(0); // 3 loads × 6,500
     expect(screen.getAllByText("Add").at(-1)!).not.toBeDisabled();
+    spy.mockRestore();
+  });
+});
+
+describe("rehra khatta", () => {
+  it("loads say bricks or 9t tile and where from (patheer or kacha store); outsource bricks go to the store", async () => {
+    WRITES.length = 0;
+    const { spy } = await mount("/rehra");
+    expect(await screen.findByText("Kacha store — stored dry bricks", {}, { timeout: 4000 })).toBeInTheDocument();
+    expect(await screen.findByText("15,000")).toBeInTheDocument(); // bricks in store
+    // New load from the store
+    fireEvent.change(screen.getAllByLabelText("Rehra").at(-1)!, { target: { value: R1 } });
+    fireEvent.change(screen.getAllByLabelText("What").at(0)!.closest("table")!.querySelectorAll("tr.new select[aria-label='What']")[0]!, { target: { value: "9t" } });
+    const from = screen.getAllByLabelText("From").at(-1)!;
+    fireEvent.change(from, { target: { value: "store" } });
+    const count = screen.getAllByLabelText("bricks").at(-1)!;
+    fireEvent.change(count, { target: { value: "100" } });
+    expect(count).toHaveAttribute("title", expect.stringMatching(/More than in the kacha store/)); // 0 9t tiles in store
+    fireEvent.keyDown(count, { key: "Enter" });
+    await waitFor(() => expect(WRITES.some((w) => w.table === "kiln_entries")).toBe(true), { timeout: 4000 });
+    expect(WRITES.find((w) => w.table === "kiln_entries")!.payload).toMatchObject({ stage: "rehra", raw_type: "9t", from_store: true, source_party_id: null, count: 100 });
+    // Outsource supplier stacks bricks in the store
+    fireEvent.change(screen.getByLabelText("Supplier name"), { target: { value: "Haji Bhatta" } });
+    const bricks = screen.getAllByLabelText("Bricks").at(-1)!;
+    fireEvent.change(bricks, { target: { value: "20000" } });
+    fireEvent.keyDown(bricks, { key: "Enter" });
+    await waitFor(() => expect(WRITES.some((w) => w.table === "raw_store")).toBe(true), { timeout: 4000 });
+    expect(WRITES.find((w) => w.table === "raw_store")!.payload).toMatchObject({ source: "outsource", supplier: "Haji Bhatta", raw_type: "brick", count: 20000 });
     spy.mockRestore();
   });
 });

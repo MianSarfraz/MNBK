@@ -79,9 +79,9 @@ describe("the eight scenarios", () => {
              values ('2026-11-21', $1, 'sale_receipt', 'in', 100000, 'bank', $2, 'payment', 'TXN-778', $2)`, [await customer("Imran urf polu"), U]);
     expect(await account("Imran urf polu")).toMatchObject({ payments: 100000, outstanding: 80000 });
   });
-  it("5 — Nakad Bikri 2,000 Doum: stock down 2,000, paid automatically, nothing owed", async () => {
+  it("5 — Nakad Bikri 2,000 Doum: stock down 2,000; the amount the owner confirms as received is recorded", async () => {
     await q(`insert into stock_adjustments (stock, quality_id, entry_date, delta, reason, is_opening) values ('finished', $1, '2026-11-01', 10000, 'Opening stock', true)`, [await type("Doum")]);
-    await sell("Nakad Bikri", "Doum", 2000, 15000, 999999); // "received now" is ignored: always exactly the total
+    await sell("Nakad Bikri", "Doum", 2000, 15000, 30000); // owner confirmed "received in full"
     expect((await stock("Doum")).balance).toBe(8000);
     expect(await account("Nakad Bikri")).toMatchObject({ purchases: 30000, payments: 30000, outstanding: 0 });
   });
@@ -100,19 +100,21 @@ describe("the eight scenarios", () => {
     expect((await stock("Awal")).balance).toBe(60000);
     expect((await stock("Doum")).balance).toBe(8000);
   });
-  it("8 — editing a sale recalculates stock, the customer account and Nakad's auto-payment; history is kept", async () => {
-    const sid = await sell("Nakad Bikri", "Awal", 1000, 18000);
+  it("8 — editing a sale recalculates stock and the customer account; history is kept", async () => {
+    const sid = await sell("Nakad Bikri", "Awal", 1000, 18000, 18000);
     const item = await one<{ id: string }>(`select id from sale_items where sale_id=$1`, [sid]);
     await q(`update sale_items set quantity = 3000 where id=$1`, [item.id]);
     expect((await stock("Awal")).balance).toBe(57000);
-    expect(await account("Nakad Bikri")).toMatchObject({ purchases: 30000 + 54000, payments: 30000 + 54000, outstanding: 0 });
+    // No hidden automatic receipt any more: the extra 36,000 shows as owed until the owner records it.
+    expect(await account("Nakad Bikri")).toMatchObject({ purchases: 30000 + 54000, payments: 30000 + 18000, outstanding: 36000 });
     const audit = await one<{ n: number }>(`select count(*)::int n from audit_log where table_name='sale_items' and row_id=$1 and action='UPDATE'`, [item.id]);
     expect(audit.n).toBe(1);
+    await q(`update transactions set deleted_at = now() where sale_id=$1`, [sid]);
     await q(`update sales set deleted_at = now() where id=$1`, [sid]);
     expect((await stock("Awal")).balance).toBe(60000);
     expect((await account("Nakad Bikri")).outstanding).toBe(0);
   });
-  it("roray are sold by the load: amount = loads × rate, stock untouched, Nakad still auto-paid", async () => {
+  it("roray are sold by the load: amount = loads × rate, stock untouched", async () => {
     const roray = (n: string) => one<{ id: string }>(`select id from qualities where kind='sale' and name_en=$1`, [n]).then((r) => r.id);
     const before = await q(`select quality_id, balance from finished_stock order by quality_id`);
     await q(`insert into parties (kind, name, created_by) values ('customer', 'Roray Buyer', $1)`, [U]);
@@ -126,9 +128,19 @@ describe("the eight scenarios", () => {
     await q(`update sales set deleted_at=now() where id=$1`, [sid]);
     expect(await q(`select quality_id, balance from finished_stock order by quality_id`)).toEqual(before);
     const nk = JSON.stringify([{ quality_id: await roray("Rehra Roray"), quantity: 3, rate_per_1000: 1500 }]);
-    const nid = (await one<{ id: string }>(`select public.create_sale('2026-11-21', $1, null, null, 0, 0, null, $2::jsonb, 0, 'cash', null) as id`, [await customer("Nakad Bikri"), nk])).id;
-    expect(await one(`select amount from transactions where sale_id=$1 and category='cash_sale' and deleted_at is null`, [nid])).toEqual({ amount: 4500 });
+    // Nakad: 3 loads = 4,500, owner gives 500 discount and confirms 4,000 received.
+    const nid = (await one<{ id: string }>(`select public.create_sale('2026-11-21', $1, null, null, 500, 0, null, $2::jsonb, 4000, 'cash', $3) as id`, [await customer("Nakad Bikri"), nk, U])).id;
+    expect(await one(`select total from sale_totals where sale_id=$1`, [nid])).toEqual({ total: 4000 });
+    expect(await q(`select amount from transactions where sale_id=$1 and deleted_at is null`, [nid])).toEqual([{ amount: 4000 }]);
+    await q(`update transactions set deleted_at=now() where sale_id=$1`, [nid]);
     await q(`update sales set deleted_at=now() where id=$1`, [nid]);
+  });
+  it("a sale can be saved without a rate (filled in later); it shows Rs 0 until then", async () => {
+    const sid = await sell("Rana Shani", "Awal", 500, 0);
+    expect(await one(`select total, bricks from sale_totals where sale_id=$1`, [sid])).toEqual({ total: 0, bricks: 500 });
+    await q(`update sale_items set rate_per_1000 = 18000 where sale_id=$1`, [sid]);
+    expect(await one(`select total from sale_totals where sale_id=$1`, [sid])).toEqual({ total: 9000 });
+    await q(`update sales set deleted_at=now() where id=$1`, [sid]);
   });
   it("a roray can't be made stock-tracked", async () => {
     await expect(q(`update qualities set kind='nakasi' where name_en='Trali Roray'`)).rejects.toThrow(/qualities_load_is_sale_only/);
@@ -223,4 +235,46 @@ describe("upgrading a project that ran the older setup (migrations up to 0006)",
     await old.exec(SETUP);
     expect((await old.query<{ a: boolean }>(`select is_active a from qualities where name_en='Khingar'`)).rows[0]!.a).toBe(false);
   }, 60_000);
+});
+
+describe("rehra and the kacha store", () => {
+  const rehra = async () => {
+    const r = await q<{ id: string }>(`select id from parties where kind='rehra' and name='Rafiq'`);
+    if (r[0]) return r[0].id;
+    return (await one<{ id: string }>(`insert into parties (kind, name, created_by) values ('rehra', 'Rafiq', $1) returning id`, [U])).id;
+  };
+  const patheer = async () => {
+    const r = await q<{ id: string }>(`select id from parties where kind='patheer' and name='Akram'`);
+    if (r[0]) return r[0].id;
+    return (await one<{ id: string }>(`insert into parties (kind, name, created_by) values ('patheer', 'Akram', $1) returning id`, [U])).id;
+  };
+  const store = (t: string) => one<{ from_patheer: number; outsourced: number; opening: number; used: number; balance: number }>(
+    `select from_patheer, outsourced, opening, used, balance from raw_store_stock where raw_type=$1`, [t]);
+
+  it("starts empty for both bricks and 9t tiles", async () => {
+    expect(await store("brick")).toMatchObject({ balance: 0 });
+    expect(await store("9t")).toMatchObject({ balance: 0 });
+  });
+  it("stacks bricks from a patheer and an outsource supplier (count only), and rehra loads from it", async () => {
+    await q(`insert into raw_store (entry_date, raw_type, source, patheer_id, count) values ('2026-11-20', 'brick', 'patheer', $1, 30000)`, [await patheer()]);
+    await q(`insert into raw_store (entry_date, raw_type, source, supplier, count) values ('2026-11-20', 'brick', 'outsource', 'Haji Bhatta', 20000), ('2026-11-20', '9t', 'outsource', 'Haji Bhatta', 5000)`);
+    await q(`insert into kiln_entries (stage, party_id, entry_date, count, raw_type, from_store) values ('rehra', $1, '2026-11-21', 12000, 'brick', true), ('rehra', $1, '2026-11-21', 2000, '9t', true)`, [await rehra()]);
+    expect(await store("brick")).toEqual({ from_patheer: 30000, outsourced: 20000, opening: 0, used: 12000, balance: 38000 });
+    expect(await store("9t")).toMatchObject({ outsourced: 5000, used: 2000, balance: 3000 });
+  });
+  it("outsource needs a supplier name; only corrections can be negative", async () => {
+    await expect(q(`insert into raw_store (entry_date, source, count) values ('2026-11-20', 'outsource', 100)`)).rejects.toThrow();
+    await expect(q(`insert into raw_store (entry_date, source, count) values ('2026-11-20', 'opening', -100)`)).rejects.toThrow();
+    await q(`insert into raw_store (entry_date, source, count, notes) values ('2026-11-22', 'adjust', -1000, 'rain damage')`);
+    expect((await store("brick")).balance).toBe(37000);
+  });
+  it("a load from the store can't also name a patheer; rehra still earns for it", async () => {
+    await expect(q(`insert into kiln_entries (stage, party_id, entry_date, count, from_store, source_party_id) values ('rehra', $1, '2026-11-21', 10, true, $2)`, [await rehra(), await patheer()])).rejects.toThrow(/kiln_entries_store_source/);
+    await q(`insert into party_rates (party_id, kind, rate_per_1000, effective_from, created_by) values ($1, 'earning', 300, '2026-07-01', $2)`, [await rehra(), U]);
+    expect(await one(`select earnings from party_earnings where party_id=$1`, [await rehra()])).toEqual({ earnings: (14000 * 300) / 1000 });
+  });
+  it("total kacha at the yard counts outsource as new bricks, patheer→store as a move", async () => {
+    const r = await one<{ external: number; stored: number }>(`select external, stored from raw_stock`);
+    expect(r).toEqual({ external: 25000 - 1000, stored: 37000 + 3000 });
+  });
 });
